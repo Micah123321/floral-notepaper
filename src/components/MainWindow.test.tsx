@@ -23,6 +23,8 @@ describe("MainWindow settings", () => {
           externalFileAutoSave: true,
           rememberSurfaceSize: true,
           tileCtrlClose: true,
+          toggleVisibilityShortcut: "",
+          tileRenderMarkdown: false,
         }}
       />,
     );

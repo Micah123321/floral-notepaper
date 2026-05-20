@@ -20,6 +20,8 @@ export interface AppConfig {
   externalFileAutoSave: boolean;
   rememberSurfaceSize: boolean;
   tileCtrlClose: boolean;
+  tileRenderMarkdown: boolean;
   surfaceWidth?: number;
   surfaceHeight?: number;
+  toggleVisibilityShortcut: string;
 }
