@@ -1,0 +1,77 @@
+---
+module: build-and-tests
+updated_at: 2026-05-30 16:28:01
+---
+
+# 构建与测试
+
+## 职责
+
+本模块记录项目的构建、测试、格式化、静态检查和发布打包流程。主要文件：
+
+- `package.json`
+- `vite.config.ts`
+- `tsconfig.json`
+- `tsconfig.node.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/tauri.conf.json`
+- `tests/`
+- `src/**/*.test.ts`
+
+## npm 脚本
+
+| 命令 | 作用 |
+| --- | --- |
+| `npm run dev` | 启动 Vite 开发服务器 |
+| `npm run build` | 执行 `tsc && vite build` |
+| `npm run test` | 执行 `vitest run` |
+| `npm run lint` | 执行 `oxlint` |
+| `npm run fmt` | 执行 `oxfmt` |
+| `npm run preview` | 预览 Vite 构建产物 |
+| `npm run tauri` | 调用 Tauri CLI |
+| `npm run prepare` | 初始化 husky |
+
+## Vite 配置
+
+- Vite dev server 固定端口：`1420`
+- `strictPort: true`
+- Tauri dev host 通过 `TAURI_DEV_HOST` 支持移动或远程调试。
+- HMR 端口为 `1421`。
+- watch 忽略 `src-tauri/**`。
+- Vitest setup file：`./src/locales/test-setup.ts`
+
+## Tauri 构建配置
+
+- `beforeDevCommand`: `npm run dev`
+- `devUrl`: `http://localhost:1420`
+- `beforeBuildCommand`: Windows 下先尝试结束正在运行的 `floral-notepaper.exe` 和 `花笺.exe`，再执行 `npm run build`
+- `frontendDist`: `../dist`
+- bundle targets：`app`、`dmg`、`nsis`
+- 文件关联：`.md`、`.markdown`、`.txt`
+- Windows NSIS 安装语言：简体中文
+
+## 测试覆盖
+
+当前测试覆盖以下方向：
+
+- CSS 和界面样式回归：`tests/AppCss.test.ts`
+- 本地化资源与白名单：`src/locales/*.test.ts`
+- 笔记工具函数：`src/features/notes/noteUtils.test.ts`
+- 导入导出文件名处理：`src/features/importExport/api.test.ts`
+- 设置、快捷键、磁贴颜色：`src/features/settings/*.test.ts`
+- 窗口路由、窗口事件、surface 模式和操作：`src/features/windows/*.test.ts`
+- Rust 存储、配置、导入导出、桌面行为：`src-tauri/src/services/notes.rs` 与 `src-tauri/src/desktop.rs` 内部测试
+
+## 验证策略
+
+常规代码变更建议按影响范围运行：
+
+```bash
+npm run lint
+npm run test
+npm run build
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+文档或知识库变更不需要运行完整构建，但应检查文件存在、非空、结构完整和无敏感信息。
+
