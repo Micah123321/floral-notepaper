@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_TILE_COLOR, normalizeTileColor } from "../features/settings/tileColor";
 import { MarkdownPreview } from "../features/markdown/MarkdownPreview";
+import type { NoteAttachment } from "../features/notes/types";
 
 export interface TileProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
@@ -16,6 +17,7 @@ export interface TileProps extends Omit<
   rotation?: number;
   fontSize?: number;
   renderMarkdown?: boolean;
+  attachments?: NoteAttachment[];
 }
 
 const MARK_SIZE = 8;
@@ -75,6 +77,7 @@ export function Tile({
   rotation = 0,
   fontSize = 14,
   renderMarkdown = false,
+  attachments = [],
   className = "",
   style,
   children,
@@ -120,7 +123,12 @@ export function Tile({
         {content ? (
           renderMarkdown ? (
             <div style={{ color: contentColor }}>
-              <MarkdownPreview content={content} fontSize={fontSize} renderHtml={false} />
+              <MarkdownPreview
+                content={content}
+                fontSize={fontSize}
+                renderHtml={false}
+                attachments={attachments}
+              />
             </div>
           ) : (
             <div

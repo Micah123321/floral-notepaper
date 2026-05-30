@@ -78,6 +78,29 @@ pub struct AppConfig {
     pub toggle_visibility_shortcut: String,
     #[serde(default = "default_open_at_cursor")]
     pub open_at_cursor: bool,
+    #[serde(default = "default_webdav_config")]
+    pub webdav: WebdavConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WebdavConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub endpoint: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default = "default_webdav_remote_path")]
+    pub remote_path: String,
+}
+
+impl Default for WebdavConfig {
+    fn default() -> Self {
+        default_webdav_config()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -87,6 +110,21 @@ pub struct SaveNoteRequest {
     pub content: String,
     #[serde(default)]
     pub category: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminder: Option<NoteReminder>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteReminder {
+    pub kind: String,
+    pub input: String,
+    pub next_at: String,
+    pub time_of_day: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weekday: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day_of_month: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -101,6 +139,8 @@ pub struct NoteMetadata {
     pub updated_at: DateTime<Utc>,
     pub word_count: usize,
     pub preview: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminder: Option<NoteReminder>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -115,6 +155,22 @@ pub struct Note {
     pub updated_at: DateTime<Utc>,
     pub word_count: usize,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminder: Option<NoteReminder>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteAttachment {
+    pub id: String,
+    pub note_id: String,
+    pub file_name: String,
+    pub stored_file_name: String,
+    pub path: String,
+    pub markdown_url: String,
+    pub mime_group: String,
+    pub size: u64,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -127,7 +183,7 @@ pub struct AppError {
 }
 
 impl AppError {
-    fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
@@ -135,13 +191,25 @@ impl AppError {
         }
     }
 
-    fn with_detail(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    pub(crate) fn with_detail(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.details.insert(key.into(), value.into());
         self
     }
 
     fn note_not_found(id: &str) -> Self {
         Self::new("noteNotFound", format!("Note {id} was not found")).with_detail("noteId", id)
+    }
+
+    fn attachment_not_found(id: &str) -> Self {
+        Self::new(
+            "attachmentNotFound",
+            format!("Attachment {id} was not found"),
+        )
+        .with_detail("attachmentId", id)
+    }
+
+    fn invalid_attachment_source() -> Self {
+        Self::new("invalidAttachmentSource", "附件源文件不存在或不可读取")
     }
 
     fn unsupported_file() -> Self {
@@ -192,10 +260,25 @@ impl From<tauri::Error> for AppError {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MetadataFile {
+    pub notes: Vec<NoteMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentRecord {
+    id: String,
+    file_name: String,
+    stored_file_name: String,
+    created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-struct MetadataFile {
-    notes: Vec<NoteMetadata>,
+struct AttachmentMetadataFile {
+    attachments: Vec<AttachmentRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -311,6 +394,14 @@ impl NoteStore {
         self.base_dir.join("config.json")
     }
 
+    pub fn backgrounds_dir(&self) -> PathBuf {
+        self.base_dir.join("backgrounds")
+    }
+
+    pub fn attachments_root(&self) -> PathBuf {
+        self.base_dir.join("attachments")
+    }
+
     #[cfg(target_os = "macos")]
     fn macos_shortcut_migration_path(&self) -> PathBuf {
         self.base_dir.join(MACOS_SHORTCUT_MIGRATION_MARKER)
@@ -374,6 +465,7 @@ impl NoteStore {
             updated_at: metadata.updated_at,
             word_count: metadata.word_count,
             content,
+            reminder: metadata.reminder,
         })
     }
 
@@ -384,6 +476,7 @@ impl NoteStore {
         let file_name = self.file_name_for(&id, &request.title);
         let word_count = count_words(&request.content);
         let category = request.category.clone();
+        let reminder = request.reminder.clone();
         let note_path = self.note_path_in_category(&file_name, &category);
         if let Some(parent) = note_path.parent() {
             fs::create_dir_all(parent)?;
@@ -397,6 +490,7 @@ impl NoteStore {
             updated_at: now,
             word_count,
             preview: preview(&request.content),
+            reminder: reminder.clone(),
         };
 
         fs::write(&note_path, &request.content)?;
@@ -413,6 +507,7 @@ impl NoteStore {
             updated_at: now,
             word_count,
             content: request.content,
+            reminder,
         })
     }
 
@@ -429,6 +524,7 @@ impl NoteStore {
         let old_category = note.category.clone();
         let new_file_name = self.file_name_for(id, &request.title);
         let new_category = request.category.clone();
+        let reminder = request.reminder.clone();
         let now = Utc::now();
         let word_count = count_words(&request.content);
 
@@ -452,6 +548,7 @@ impl NoteStore {
         note.updated_at = now;
         note.word_count = word_count;
         note.preview = preview(&request.content);
+        note.reminder = reminder.clone();
 
         let result = Note {
             id: note.id.clone(),
@@ -462,6 +559,7 @@ impl NoteStore {
             updated_at: note.updated_at,
             word_count: note.word_count,
             content: request.content,
+            reminder,
         };
 
         self.save_metadata(&metadata_file)?;
@@ -482,7 +580,85 @@ impl NoteStore {
             trash::delete(&path)
                 .map_err(|e| AppError::new("trash", format!("移入回收站失败: {e}")))?;
         }
+        let attachments_dir = self.note_attachments_dir(&metadata.id);
+        if attachments_dir.exists() {
+            trash::delete(&attachments_dir)
+                .map_err(|e| AppError::new("trash", format!("移入回收站失败: {e}")))?;
+        }
         self.save_metadata(&metadata_file)
+    }
+
+    pub fn list_attachments(&self, note_id: &str) -> Result<Vec<NoteAttachment>, AppError> {
+        self.ensure_storage()?;
+        self.find_metadata(note_id)?;
+
+        let mut attachments = Vec::new();
+        for record in self.load_attachment_metadata(note_id)?.attachments {
+            let path = self.attachment_path(note_id, &record.stored_file_name);
+            if !path.exists() {
+                continue;
+            }
+            attachments.push(self.attachment_from_record(note_id, &record)?);
+        }
+
+        attachments.sort_by_key(|attachment| std::cmp::Reverse(attachment.updated_at));
+        Ok(attachments)
+    }
+
+    pub fn add_attachment(
+        &self,
+        note_id: &str,
+        source_path: &Path,
+    ) -> Result<NoteAttachment, AppError> {
+        self.ensure_storage()?;
+        self.find_metadata(note_id)?;
+        if !source_path.is_file() {
+            return Err(AppError::invalid_attachment_source());
+        }
+
+        let file_name = source_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(AppError::invalid_attachment_source)?
+            .to_string();
+        let id = Uuid::new_v4().to_string();
+        let stored_file_name = attachment_file_name_for(&id, &file_name);
+        let dir = self.note_attachments_dir(note_id);
+        fs::create_dir_all(&dir)?;
+        fs::copy(source_path, dir.join(&stored_file_name))?;
+
+        let record = AttachmentRecord {
+            id,
+            file_name,
+            stored_file_name,
+            created_at: Utc::now(),
+        };
+        let mut metadata = self.load_attachment_metadata(note_id)?;
+        metadata.attachments.push(record.clone());
+        self.save_attachment_metadata(note_id, &metadata)?;
+
+        self.attachment_from_record(note_id, &record)
+    }
+
+    pub fn delete_attachment(&self, note_id: &str, attachment_id: &str) -> Result<(), AppError> {
+        self.ensure_storage()?;
+        self.find_metadata(note_id)?;
+
+        let mut metadata = self.load_attachment_metadata(note_id)?;
+        let index = metadata
+            .attachments
+            .iter()
+            .position(|attachment| attachment.id == attachment_id)
+            .ok_or_else(|| AppError::attachment_not_found(attachment_id))?;
+        let record = metadata.attachments.remove(index);
+        let path = self.attachment_path(note_id, &record.stored_file_name);
+        if path.exists() {
+            trash::delete(&path)
+                .map_err(|e| AppError::new("trash", format!("移入回收站失败: {e}")))?;
+        }
+        self.save_attachment_metadata(note_id, &metadata)
     }
 
     pub fn import_markdown_file(&self, path: &Path, category: &str) -> Result<Note, AppError> {
@@ -496,6 +672,7 @@ impl NoteStore {
             title,
             content,
             category: category.to_string(),
+            reminder: None,
         })
     }
 
@@ -692,10 +869,11 @@ impl NoteStore {
             surface_height: None,
             toggle_visibility_shortcut: default_toggle_visibility_shortcut(),
             open_at_cursor: default_open_at_cursor(),
+            webdav: default_webdav_config(),
         }
     }
 
-    fn ensure_base_dir(&self) -> Result<(), AppError> {
+    pub(crate) fn ensure_base_dir(&self) -> Result<(), AppError> {
         fs::create_dir_all(&self.base_dir)?;
         Ok(())
     }
@@ -734,7 +912,7 @@ impl NoteStore {
         Ok(())
     }
 
-    fn ensure_storage(&self) -> Result<(), AppError> {
+    pub(crate) fn ensure_storage(&self) -> Result<(), AppError> {
         self.ensure_base_dir()?;
         let config = self.load_config()?;
         fs::create_dir_all(&config.notes_dir)?;
@@ -744,7 +922,7 @@ impl NoteStore {
         Ok(())
     }
 
-    fn notes_dir(&self) -> Result<PathBuf, AppError> {
+    pub(crate) fn notes_dir(&self) -> Result<PathBuf, AppError> {
         Ok(PathBuf::from(self.load_config()?.notes_dir))
     }
 
@@ -757,6 +935,18 @@ impl NoteStore {
         } else {
             notes_dir.join(category).join(file_name)
         }
+    }
+
+    fn note_attachments_dir(&self, note_id: &str) -> PathBuf {
+        self.attachments_root().join(note_id)
+    }
+
+    fn attachment_metadata_path(&self, note_id: &str) -> PathBuf {
+        self.note_attachments_dir(note_id).join("attachments.json")
+    }
+
+    fn attachment_path(&self, note_id: &str, stored_file_name: &str) -> PathBuf {
+        self.note_attachments_dir(note_id).join(stored_file_name)
     }
 
     fn find_metadata(&self, id: &str) -> Result<NoteMetadata, AppError> {
@@ -776,7 +966,7 @@ impl NoteStore {
         }
     }
 
-    fn load_metadata(&self) -> Result<MetadataFile, AppError> {
+    pub(crate) fn load_metadata(&self) -> Result<MetadataFile, AppError> {
         self.ensure_base_dir()?;
         let path = self.metadata_path();
         if !path.exists() {
@@ -801,9 +991,58 @@ impl NoteStore {
         }
     }
 
-    fn save_metadata(&self, metadata: &MetadataFile) -> Result<(), AppError> {
+    pub(crate) fn save_metadata(&self, metadata: &MetadataFile) -> Result<(), AppError> {
         self.ensure_base_dir()?;
         write_json_atomic(&self.metadata_path(), metadata)
+    }
+
+    fn load_attachment_metadata(&self, note_id: &str) -> Result<AttachmentMetadataFile, AppError> {
+        let path = self.attachment_metadata_path(note_id);
+        if !path.exists() {
+            return Ok(AttachmentMetadataFile::default());
+        }
+
+        match serde_json::from_str(&fs::read_to_string(&path)?) {
+            Ok(metadata) => Ok(metadata),
+            Err(_) => Ok(AttachmentMetadataFile::default()),
+        }
+    }
+
+    fn save_attachment_metadata(
+        &self,
+        note_id: &str,
+        metadata: &AttachmentMetadataFile,
+    ) -> Result<(), AppError> {
+        write_json_atomic(&self.attachment_metadata_path(note_id), metadata)
+    }
+
+    fn attachment_from_record(
+        &self,
+        note_id: &str,
+        record: &AttachmentRecord,
+    ) -> Result<NoteAttachment, AppError> {
+        let path = self.attachment_path(note_id, &record.stored_file_name);
+        let file_metadata = fs::metadata(&path)?;
+        let updated_at = file_metadata
+            .modified()
+            .map(DateTime::<Utc>::from)
+            .unwrap_or(record.created_at);
+        let path_string = path
+            .to_str()
+            .map(str::to_string)
+            .ok_or_else(|| AppError::new("path", format!("附件路径无效: {}", path.display())))?;
+
+        Ok(NoteAttachment {
+            id: record.id.clone(),
+            note_id: note_id.to_string(),
+            file_name: record.file_name.clone(),
+            stored_file_name: record.stored_file_name.clone(),
+            path: path_string,
+            markdown_url: attachment_markdown_url(note_id, &record.stored_file_name),
+            mime_group: attachment_mime_group(&record.file_name).to_string(),
+            size: file_metadata.len(),
+            updated_at,
+        })
     }
 
     fn rebuild_metadata(&self) -> Result<MetadataFile, AppError> {
@@ -859,6 +1098,7 @@ impl NoteStore {
                 updated_at: modified,
                 word_count: count_words(&content),
                 preview: preview(&content),
+                reminder: None,
             });
         }
         Ok(())
@@ -871,7 +1111,14 @@ fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), AppErro
     }
     let temp_path = path.with_extension("json.tmp");
     fs::write(&temp_path, serde_json::to_string_pretty(value)?)?;
-    fs::rename(&temp_path, path)?;
+    match fs::rename(&temp_path, path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            fs::remove_file(path)?;
+            fs::rename(&temp_path, path)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
     Ok(())
 }
 
@@ -958,6 +1205,52 @@ fn is_markdown_path(path: &Path) -> bool {
         .and_then(|extension| extension.to_str())
         .map(|extension| extension.eq_ignore_ascii_case("md"))
         .unwrap_or(false)
+}
+
+fn attachment_file_name_for(id: &str, file_name: &str) -> String {
+    let path = Path::new(file_name);
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(safe_extension)
+        .filter(|value| !value.is_empty());
+
+    match extension {
+        Some(extension) => format!("{id}.{extension}"),
+        None => id.to_string(),
+    }
+}
+
+fn safe_extension(extension: &str) -> String {
+    extension
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .take(16)
+        .collect()
+}
+
+fn attachment_markdown_url(note_id: &str, stored_file_name: &str) -> String {
+    format!("floral-attachment://{note_id}/{stored_file_name}")
+}
+
+fn attachment_mime_group(file_name: &str) -> &'static str {
+    let is_image = Path::new(file_name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "apng" | "avif" | "bmp" | "gif" | "jpeg" | "jpg" | "png" | "webp"
+            )
+        })
+        .unwrap_or(false);
+
+    if is_image {
+        "image"
+    } else {
+        "file"
+    }
 }
 
 fn imported_markdown_title(path: &Path, content: &str) -> String {
@@ -1056,6 +1349,20 @@ fn default_locale() -> String {
     "zh-CN".into()
 }
 
+fn default_webdav_remote_path() -> String {
+    "floral-notepaper".into()
+}
+
+fn default_webdav_config() -> WebdavConfig {
+    WebdavConfig {
+        enabled: false,
+        endpoint: String::new(),
+        username: String::new(),
+        password: String::new(),
+        remote_path: default_webdav_remote_path(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1082,6 +1389,7 @@ mod tests {
                 title: "A/B:Test".into(),
                 content: "hello\nworld".into(),
                 category: String::new(),
+                reminder: None,
             })
             .expect("create note");
 
@@ -1106,6 +1414,7 @@ mod tests {
                     title: "".into(),
                     content: "# 新标题\nsecond line".into(),
                     category: String::new(),
+                    reminder: None,
                 },
             )
             .expect("update note");
@@ -1127,6 +1436,7 @@ mod tests {
                 title: "第一条".into(),
                 content: "# 第一条\n正文".into(),
                 category: String::new(),
+                reminder: None,
             })
             .expect("create first");
         let second = store
@@ -1134,6 +1444,7 @@ mod tests {
                 title: "第二条".into(),
                 content: "第二条正文".into(),
                 category: String::new(),
+                reminder: None,
             })
             .expect("create second");
 
@@ -1157,6 +1468,70 @@ mod tests {
     }
 
     #[test]
+    fn persists_note_reminders_and_loads_legacy_metadata_without_reminder() {
+        let store = NoteStore::new(test_root("reminder"));
+        let reminder = NoteReminder {
+            kind: "monthly".into(),
+            input: "每月五号上午10点".into(),
+            next_at: "2026-06-05T02:00:00Z".into(),
+            time_of_day: "10:00".into(),
+            weekday: None,
+            day_of_month: Some(5),
+        };
+
+        let created = store
+            .create_note(SaveNoteRequest {
+                title: "账单".into(),
+                content: "记得处理账单".into(),
+                category: String::new(),
+                reminder: Some(reminder.clone()),
+            })
+            .expect("create reminder note");
+
+        assert_eq!(created.reminder, Some(reminder.clone()));
+        assert_eq!(
+            store.list_notes().expect("list reminder notes")[0].reminder,
+            Some(reminder.clone())
+        );
+        assert_eq!(
+            store
+                .read_note(&created.id)
+                .expect("read reminder")
+                .reminder,
+            Some(reminder)
+        );
+
+        let legacy_store = NoteStore::new(test_root("legacy-reminder"));
+        legacy_store
+            .ensure_storage()
+            .expect("ensure legacy storage");
+        let notes_dir = legacy_store.notes_dir().expect("legacy notes dir");
+        fs::write(notes_dir.join("legacy.md"), "旧笔记").expect("write legacy note");
+        fs::write(
+            legacy_store.metadata_path(),
+            r#"{
+  "notes": [
+    {
+      "id": "legacy",
+      "title": "旧笔记",
+      "fileName": "legacy.md",
+      "category": "",
+      "createdAt": "2026-05-30T00:00:00Z",
+      "updatedAt": "2026-05-30T00:00:00Z",
+      "wordCount": 3,
+      "preview": "旧笔记"
+    }
+  ]
+}"#,
+        )
+        .expect("write legacy metadata");
+
+        let legacy_notes = legacy_store.list_notes().expect("list legacy notes");
+        assert_eq!(legacy_notes.len(), 1);
+        assert_eq!(legacy_notes[0].reminder, None);
+    }
+
+    #[test]
     fn reads_and_writes_config_json() {
         let store = NoteStore::new(test_root("config"));
 
@@ -1171,6 +1546,8 @@ mod tests {
         assert_eq!(default_config.tile_color_mode, "system");
         assert_eq!(default_config.theme, "system");
         assert_eq!(default_config.locale, "zh-CN");
+        assert!(!default_config.webdav.enabled);
+        assert_eq!(default_config.webdav.remote_path, "floral-notepaper");
         assert!(default_config.notes_dir.ends_with("notes"));
 
         let custom_notes_dir = store.base_dir().join("custom-notes");
@@ -1205,6 +1582,7 @@ mod tests {
             surface_height: None,
             toggle_visibility_shortcut: String::new(),
             open_at_cursor: true,
+            webdav: default_webdav_config(),
         };
 
         store.save_config(saved.clone()).expect("save config");
@@ -1244,6 +1622,8 @@ mod tests {
         assert_eq!(loaded.locale, "zh-CN");
         assert_eq!(loaded.font_size, 14);
         assert_eq!(loaded.surface_font_size, 14);
+        assert!(!loaded.webdav.enabled);
+        assert_eq!(loaded.webdav.remote_path, "floral-notepaper");
     }
 
     #[cfg(target_os = "macos")]
@@ -1388,6 +1768,7 @@ mod tests {
                 title: "导出标题".into(),
                 content: content.into(),
                 category: String::new(),
+                reminder: None,
             })
             .expect("create note");
         let export_path = root.join("exports").join("导出.md");
@@ -1400,5 +1781,81 @@ mod tests {
             fs::read_to_string(export_path).expect("read exported markdown"),
             content
         );
+    }
+
+    #[test]
+    fn adds_lists_and_deletes_note_attachments() {
+        let root = test_root("attachments");
+        let source_path = root.join("source image.PNG");
+        fs::write(&source_path, [1_u8, 2, 3, 4]).expect("write source attachment");
+        let store = NoteStore::new(root.join("store"));
+        let note = store
+            .create_note(SaveNoteRequest {
+                title: "附件".into(),
+                content: "content".into(),
+                category: String::new(),
+                reminder: None,
+            })
+            .expect("create note");
+
+        let attachment = store
+            .add_attachment(&note.id, &source_path)
+            .expect("add attachment");
+
+        assert_eq!(attachment.note_id, note.id);
+        assert_eq!(attachment.file_name, "source image.PNG");
+        assert_eq!(attachment.mime_group, "image");
+        assert_eq!(attachment.size, 4);
+        assert!(attachment.stored_file_name.ends_with(".png"));
+        assert_eq!(
+            attachment.markdown_url,
+            format!(
+                "floral-attachment://{}/{}",
+                note.id, attachment.stored_file_name
+            )
+        );
+        assert_eq!(
+            fs::read(&attachment.path).expect("read copied attachment"),
+            [1_u8, 2, 3, 4]
+        );
+
+        let listed = store.list_attachments(&note.id).expect("list attachments");
+        assert_eq!(listed, vec![attachment.clone()]);
+
+        store
+            .delete_attachment(&note.id, &attachment.id)
+            .expect("delete attachment");
+        assert!(store
+            .list_attachments(&note.id)
+            .expect("list after delete")
+            .is_empty());
+        assert!(!PathBuf::from(&attachment.path).exists());
+    }
+
+    #[test]
+    fn deletes_attachment_directory_when_note_is_deleted() {
+        let root = test_root("attachment-note-delete");
+        let source_path = root.join("document.pdf");
+        fs::write(&source_path, b"pdf").expect("write source attachment");
+        let store = NoteStore::new(root.join("store"));
+        let note = store
+            .create_note(SaveNoteRequest {
+                title: "带附件".into(),
+                content: "content".into(),
+                category: String::new(),
+                reminder: None,
+            })
+            .expect("create note");
+        let attachment = store
+            .add_attachment(&note.id, &source_path)
+            .expect("add attachment");
+        let attachment_dir = store.note_attachments_dir(&note.id);
+
+        assert_eq!(attachment.mime_group, "file");
+        assert!(attachment_dir.exists());
+
+        store.delete_note(&note.id).expect("delete note");
+
+        assert!(!attachment_dir.exists());
     }
 }

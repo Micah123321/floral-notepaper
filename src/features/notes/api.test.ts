@@ -1,6 +1,22 @@
 import { i18n } from "../../locales";
-import { describe, expect, test } from "vitest";
-import { getErrorMessage } from "./api";
+import { invoke } from "@tauri-apps/api/core";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  addNoteAttachment,
+  deleteNoteAttachment,
+  getErrorMessage,
+  listNoteAttachments,
+} from "./api";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
+}));
+
+const mockedInvoke = vi.mocked(invoke);
+
+beforeEach(() => {
+  mockedInvoke.mockReset();
+});
 
 describe("notes api error localization", () => {
   test("localizes structured backend errors with interpolation details", () => {
@@ -45,5 +61,41 @@ describe("notes api error localization", () => {
         message: "something went wrong",
       }),
     ).toBe("something went wrong");
+  });
+
+  test("localizes attachment errors", () => {
+    expect(
+      getErrorMessage({
+        code: "invalidAttachmentSource",
+        message: "附件源文件不存在或不可读取",
+      }),
+    ).toBe("附件源文件不存在或不可读取");
+    expect(
+      getErrorMessage({
+        code: "attachmentNotFound",
+        message: "Attachment missing",
+      }),
+    ).toBe("找不到该附件");
+  });
+});
+
+describe("notes attachment api", () => {
+  test("uses structured attachment commands", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await listNoteAttachments("note-1");
+    expect(invoke).toHaveBeenCalledWith("notes_list_attachments", { noteId: "note-1" });
+
+    await addNoteAttachment("note-1", "D:\\files\\photo.png");
+    expect(invoke).toHaveBeenCalledWith("notes_add_attachment", {
+      noteId: "note-1",
+      sourcePath: "D:\\files\\photo.png",
+    });
+
+    await deleteNoteAttachment("note-1", "attachment-1");
+    expect(invoke).toHaveBeenCalledWith("notes_delete_attachment", {
+      noteId: "note-1",
+      attachmentId: "attachment-1",
+    });
   });
 });

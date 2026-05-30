@@ -5,6 +5,7 @@ import {
   filterNotes,
   getDisplayTitle,
   groupNotesByCategory,
+  metadataFromNote,
 } from "./noteUtils";
 import type { NoteMetadata } from "./types";
 
@@ -58,5 +59,29 @@ describe("note utilities", () => {
     expect(categoryNames).toContain("工作");
     const workGroup = groups.find((g) => g.category === "工作");
     expect(workGroup?.notes).toEqual([]);
+  });
+
+  it("preserves reminders when deriving metadata from a full note", () => {
+    const reminder = {
+      kind: "monthly" as const,
+      input: "每月五号上午10点",
+      nextAt: "2026-06-05T02:00:00.000Z",
+      timeOfDay: "10:00",
+      dayOfMonth: 5,
+    };
+
+    expect(
+      metadataFromNote({
+        id: "3",
+        title: "账单",
+        fileName: "3.md",
+        category: "日常",
+        createdAt: "2026-05-30T01:00:00Z",
+        updatedAt: "2026-05-30T01:00:00Z",
+        wordCount: 4,
+        content: "记得处理账单",
+        reminder,
+      }).reminder,
+    ).toEqual(reminder);
   });
 });

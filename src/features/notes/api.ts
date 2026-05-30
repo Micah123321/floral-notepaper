@@ -1,6 +1,6 @@
 import { t, type TFunction } from "i18next";
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, NoteMetadata, SaveNoteRequest } from "./types";
+import type { Note, NoteAttachment, NoteMetadata, SaveNoteRequest } from "./types";
 
 interface SerializedAppError {
   code?: unknown;
@@ -18,9 +18,19 @@ const LOCALIZED_ERROR_CODES = new Set([
   "desktopConfig",
   "duplicateShortcut",
   "noPool",
+  "attachmentNotFound",
+  "invalidAttachmentSource",
   "noteNotFound",
   "unsupportedFile",
   "unsupportedShortcut",
+  "webdavConfigIncomplete",
+  "webdavConfigInvalid",
+  "webdavDirectoryFailed",
+  "webdavDownloadFailed",
+  "webdavNetwork",
+  "webdavSnapshotInvalid",
+  "webdavSnapshotMissing",
+  "webdavUploadFailed",
 ]);
 
 export function listNotes(): Promise<NoteMetadata[]> {
@@ -41,6 +51,18 @@ export function updateNote(id: string, request: SaveNoteRequest): Promise<Note> 
 
 export function deleteNote(id: string): Promise<void> {
   return invoke("notes_delete", { id });
+}
+
+export function listNoteAttachments(noteId: string): Promise<NoteAttachment[]> {
+  return invoke("notes_list_attachments", { noteId });
+}
+
+export function addNoteAttachment(noteId: string, sourcePath: string): Promise<NoteAttachment> {
+  return invoke("notes_add_attachment", { noteId, sourcePath });
+}
+
+export function deleteNoteAttachment(noteId: string, attachmentId: string): Promise<void> {
+  return invoke("notes_delete_attachment", { noteId, attachmentId });
 }
 
 export function moveNoteCategory(id: string, category: string): Promise<NoteMetadata> {
@@ -157,6 +179,30 @@ function getLocalizedAppErrorMessage(
       });
     case "noteNotFound":
       return translate("errors.noteNotFound", { defaultValue: "找不到该笔记" });
+    case "attachmentNotFound":
+      return translate("errors.attachmentNotFound", { defaultValue: "找不到该附件" });
+    case "invalidAttachmentSource":
+      return translate("errors.invalidAttachmentSource", {
+        defaultValue: "附件源文件不存在或不可读取",
+      });
+    case "webdavConfigIncomplete":
+      return translate("errors.webdavConfigIncomplete", {
+        defaultValue: "请填写 WebDAV 地址、用户和密码",
+      });
+    case "webdavConfigInvalid":
+      return translate("errors.webdavConfigInvalid", { defaultValue: "WebDAV 地址无效" });
+    case "webdavDirectoryFailed":
+      return translate("errors.webdavDirectoryFailed", { defaultValue: "无法创建远端目录" });
+    case "webdavDownloadFailed":
+      return translate("errors.webdavDownloadFailed", { defaultValue: "下载远端快照失败" });
+    case "webdavNetwork":
+      return translate("errors.webdavNetwork", { defaultValue: "无法连接 WebDAV" });
+    case "webdavSnapshotInvalid":
+      return translate("errors.webdavSnapshotInvalid", { defaultValue: "远端快照无效" });
+    case "webdavSnapshotMissing":
+      return translate("errors.webdavSnapshotMissing", { defaultValue: "远端快照不存在" });
+    case "webdavUploadFailed":
+      return translate("errors.webdavUploadFailed", { defaultValue: "上传快照失败" });
     case "duplicateShortcut":
       return translate("errors.duplicateShortcut", {
         defaultValue: "显示/隐藏窗口快捷键不能与呼出小窗快捷键重复",

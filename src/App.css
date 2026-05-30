@@ -431,6 +431,40 @@ input::placeholder {
   animation: view-fade 0.72s ease-out forwards;
 }
 
+.reminder-paper-slip {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--color-bamboo) 14%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-paper) 74%, transparent),
+      color-mix(in srgb, var(--color-paper-warm) 56%, transparent)
+    ),
+    radial-gradient(
+      circle at 12px 8px,
+      color-mix(in srgb, var(--color-bamboo) 8%, transparent),
+      transparent 18px
+    );
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-bamboo) 38%, transparent);
+  padding: 8px 10px 9px 12px;
+}
+
+.reminder-paper-slip[data-reminder-active="true"] {
+  border-color: color-mix(in srgb, var(--color-bamboo) 24%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bamboo-mist) 68%, transparent),
+      color-mix(in srgb, var(--color-paper) 82%, transparent)
+    ),
+    radial-gradient(
+      circle at 12px 8px,
+      color-mix(in srgb, var(--color-bamboo) 12%, transparent),
+      transparent 18px
+    );
+}
+
 /* Category folder expand/collapse */
 .category-body {
   display: grid;

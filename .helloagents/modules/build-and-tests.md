@@ -1,6 +1,6 @@
 ---
 module: build-and-tests
-updated_at: 2026-05-30 16:28:01
+updated_at: 2026-05-30 18:39:00
 ---
 
 # 构建与测试
@@ -20,16 +20,16 @@ updated_at: 2026-05-30 16:28:01
 
 ## npm 脚本
 
-| 命令 | 作用 |
-| --- | --- |
-| `npm run dev` | 启动 Vite 开发服务器 |
-| `npm run build` | 执行 `tsc && vite build` |
-| `npm run test` | 执行 `vitest run` |
-| `npm run lint` | 执行 `oxlint` |
-| `npm run fmt` | 执行 `oxfmt` |
-| `npm run preview` | 预览 Vite 构建产物 |
-| `npm run tauri` | 调用 Tauri CLI |
-| `npm run prepare` | 初始化 husky |
+| 命令              | 作用                     |
+| ----------------- | ------------------------ |
+| `npm run dev`     | 启动 Vite 开发服务器     |
+| `npm run build`   | 执行 `tsc && vite build` |
+| `npm run test`    | 执行 `vitest run`        |
+| `npm run lint`    | 执行 `oxlint`            |
+| `npm run fmt`     | 执行 `oxfmt`             |
+| `npm run preview` | 预览 Vite 构建产物       |
+| `npm run tauri`   | 调用 Tauri CLI           |
+| `npm run prepare` | 初始化 husky             |
 
 ## Vite 配置
 
@@ -57,10 +57,13 @@ updated_at: 2026-05-30 16:28:01
 - CSS 和界面样式回归：`tests/AppCss.test.ts`
 - 本地化资源与白名单：`src/locales/*.test.ts`
 - 笔记工具函数：`src/features/notes/noteUtils.test.ts`
+- 笔记附件工具和 API：`src/features/notes/attachments.test.ts`、`src/features/notes/api.test.ts`
+- Markdown 附件引用解析：`src/features/markdown/MarkdownPreview.test.ts`
 - 导入导出文件名处理：`src/features/importExport/api.test.ts`
 - 设置、快捷键、磁贴颜色：`src/features/settings/*.test.ts`
 - 窗口路由、窗口事件、surface 模式和操作：`src/features/windows/*.test.ts`
 - Rust 存储、配置、导入导出、桌面行为：`src-tauri/src/services/notes.rs` 与 `src-tauri/src/desktop.rs` 内部测试
+- WebDAV 快照构建、配置清理、恢复合并和附件恢复：`src-tauri/src/services/sync.rs` 内部测试
 
 ## 验证策略
 
@@ -75,3 +78,9 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 文档或知识库变更不需要运行完整构建，但应检查文件存在、非空、结构完整和无敏感信息。
 
+## 当前环境状态
+
+- 2026-05-30 已通过 winget 安装 Rustup 和 Visual Studio 2022 Build Tools C++ 工具链。
+- Windows PowerShell 直接调用 Rust 编译时需要先加载 `VsDevCmd.bat` 或使用包含 MSVC `link.exe` 的开发环境。
+- 未加载 MSVC 开发环境时，可临时设置 `RUSTFLAGS="-C linker=rust-lld"` 运行 `cargo test --manifest-path src-tauri/Cargo.toml --no-run` 做编译检查。
+- 当前附件实现验证通过：`npm run lint`、`npm run test`、`npm run build`、`cargo test --manifest-path src-tauri/Cargo.toml`、`npx tauri build --debug`。

@@ -20,17 +20,25 @@ import { DEFAULT_TILE_COLOR, normalizeTileColor } from "../features/settings/til
 import { applyTheme, watchSystemTheme } from "../features/settings/theme";
 import { SUPPORTED_LOCALES } from "../locales/locale-whitelist";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
+import { WebdavSyncSection } from "./WebdavSyncSection";
 
 const HARMONY_FONT_LICENSE_URL = new URL("../assets/fonts/LICENSE_Fonts", import.meta.url).href;
 
 interface SettingsPanelProps {
   config: AppConfig;
   onChange: (config: AppConfig) => void;
+  onSave: (config: AppConfig) => Promise<AppConfig>;
   onChooseNotesDir: () => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: SettingsPanelProps) {
+export function SettingsPanel({
+  config,
+  onChange,
+  onSave,
+  onChooseNotesDir,
+  onClose,
+}: SettingsPanelProps) {
   const { t } = useTranslation();
   const setConfigValue = <Key extends keyof AppConfig>(key: Key, value: AppConfig[Key]) => {
     onChange({ ...config, [key]: value });
@@ -283,7 +291,7 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
 
         <section className="space-y-2">
           <label className="block text-[11px] font-body text-ink-faint">
-            {t("settings.tabIndentSize", { defaultValue: "Tab 缩进宽��" })}
+            {t("settings.tabIndentSize", { defaultValue: "Tab 缩进宽度" })}
           </label>
           <div className="flex items-center gap-3 h-9 rounded-lg px-2.5 bg-paper-warm/45 border border-paper-deep/25">
             <input
@@ -434,6 +442,8 @@ export function SettingsPanel({ config, onChange, onChooseNotesDir, onClose }: S
             onChange={(value) => setConfigValue("backgroundBlur", value)}
           />
         </section>
+
+        <WebdavSyncSection config={config} onChange={onChange} onSave={onSave} />
 
         <section className="space-y-2">
           <label className="block text-[11px] font-body text-ink-faint">

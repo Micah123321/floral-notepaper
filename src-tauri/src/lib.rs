@@ -3,7 +3,12 @@ pub mod locales;
 pub mod services;
 
 use locales::Locale;
-use services::notes::{default_store, AppConfig, AppError, Note, NoteMetadata, SaveNoteRequest};
+use services::{
+    notes::{
+        default_store, AppConfig, AppError, Note, NoteAttachment, NoteMetadata, SaveNoteRequest,
+    },
+    sync::{SyncService, SyncStatus},
+};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Emitter};
 
@@ -59,6 +64,21 @@ fn notes_import_markdown(
 #[tauri::command]
 fn notes_export_markdown(id: String, path: String) -> Result<(), AppError> {
     default_store()?.export_markdown_file(&id, &PathBuf::from(path))
+}
+
+#[tauri::command]
+fn notes_list_attachments(note_id: String) -> Result<Vec<NoteAttachment>, AppError> {
+    default_store()?.list_attachments(&note_id)
+}
+
+#[tauri::command]
+fn notes_add_attachment(note_id: String, source_path: String) -> Result<NoteAttachment, AppError> {
+    default_store()?.add_attachment(&note_id, &PathBuf::from(source_path))
+}
+
+#[tauri::command]
+fn notes_delete_attachment(note_id: String, attachment_id: String) -> Result<(), AppError> {
+    default_store()?.delete_attachment(&note_id, &attachment_id)
 }
 
 #[tauri::command]
@@ -207,6 +227,26 @@ fn config_save(app: AppHandle, config: AppConfig) -> Result<AppConfig, AppError>
 }
 
 #[tauri::command]
+async fn sync_webdav_test() -> Result<SyncStatus, AppError> {
+    SyncService::new(default_store()?).test_connection().await
+}
+
+#[tauri::command]
+async fn sync_webdav_upload() -> Result<SyncStatus, AppError> {
+    SyncService::new(default_store()?).upload_snapshot().await
+}
+
+#[tauri::command]
+async fn sync_webdav_download(app: AppHandle) -> Result<SyncStatus, AppError> {
+    let store = default_store()?;
+    let result = SyncService::new(store.clone()).download_snapshot().await?;
+    let config = store.load_config()?;
+    let _ = app.emit("config-changed", &config);
+    let _ = app.emit("notes-changed", ());
+    Ok(result)
+}
+
+#[tauri::command]
 fn global_shortcut_check(
     app: AppHandle,
     shortcut: String,
@@ -283,6 +323,9 @@ pub fn run() {
             notes_delete,
             notes_import_markdown,
             notes_export_markdown,
+            notes_list_attachments,
+            notes_add_attachment,
+            notes_delete_attachment,
             notes_move_category,
             read_external_file,
             save_external_file,
@@ -294,6 +337,9 @@ pub fn run() {
             config_get,
             copy_background_image,
             config_save,
+            sync_webdav_test,
+            sync_webdav_upload,
+            sync_webdav_download,
             global_shortcut_check,
             open_notepad_window,
             recycle_notepad_window,

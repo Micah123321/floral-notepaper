@@ -2,8 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { createNote, getErrorMessage, getNote, listNotes, updateNote } from "../features/notes/api";
-import type { Note, NoteMetadata } from "../features/notes/types";
+import {
+  createNote,
+  getErrorMessage,
+  getNote,
+  listNoteAttachments,
+  listNotes,
+  updateNote,
+} from "../features/notes/api";
+import type { Note, NoteAttachment, NoteMetadata } from "../features/notes/types";
 import {
   countNoteChars,
   formatShortDate,
@@ -118,6 +125,7 @@ export function NotePad({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
   const [hoveredNote, setHoveredNote] = useState<string | null>(null);
   const [status, setStatus] = useState<NotePadStatus>("empty");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -167,6 +175,7 @@ export function NotePad({
     setEditingNoteId(note.id);
     setTitle(note.title);
     setContent(note.content);
+    setAttachments([]);
     setMode("new");
     setStatus("opened");
   }, []);
@@ -188,8 +197,14 @@ export function NotePad({
           );
         }
         if (initialNoteId) {
-          const note = await getNote(initialNoteId);
-          if (!cancelled) applyNote(note);
+          const [note, loadedAttachments] = await Promise.all([
+            getNote(initialNoteId),
+            listNoteAttachments(initialNoteId),
+          ]);
+          if (!cancelled) {
+            applyNote(note);
+            setAttachments(loadedAttachments);
+          }
         }
       } catch (error) {
         if (!cancelled) setErrorMessage(getErrorMessage(error));
@@ -278,6 +293,7 @@ export function NotePad({
       setEditingNoteId(null);
       setTitle("");
       setContent("");
+      setAttachments([]);
       setMode("new");
       setStatus("empty");
       setErrorMessage(null);
@@ -294,13 +310,21 @@ export function NotePad({
   }, [refreshNotes]);
 
   const saveNote = useCallback(async () => {
-    const existingCategory = notes.find((n) => n.id === editingNoteId)?.category ?? "";
-    const request = { title, content, category: existingCategory };
+    const existingNote = notes.find((n) => n.id === editingNoteId);
+    const request = {
+      title,
+      content,
+      category: existingNote?.category ?? "",
+      reminder: existingNote?.reminder ?? null,
+    };
     const note = editingNoteId
       ? await updateNote(editingNoteId, request)
       : await createNote(request);
 
     setEditingNoteId(note.id);
+    if (editingNoteId !== note.id) {
+      setAttachments([]);
+    }
     setNotes((current) => {
       const metadata = metadataFromNote(note);
       const exists = current.some((item) => item.id === note.id);
@@ -311,7 +335,7 @@ export function NotePad({
     });
     setStatus("saved");
     return note;
-  }, [content, editingNoteId, title]);
+  }, [content, editingNoteId, notes, title]);
 
   const hasDraftContent = useCallback(
     () => Boolean(editingNoteId || title.trim() || content.trim()),
@@ -387,6 +411,7 @@ export function NotePad({
     try {
       const note = await getNote(noteId);
       applyNote(note);
+      setAttachments(await listNoteAttachments(noteId));
       await switchSurfaceMode("pad");
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -480,6 +505,7 @@ export function NotePad({
     setEditingNoteId(null);
     setTitle("");
     setContent("");
+    setAttachments([]);
     setMode("new");
     setStatus("empty");
     setErrorMessage(null);
@@ -501,6 +527,7 @@ export function NotePad({
           color={tileColor}
           fontSize={surfaceFontSize}
           renderMarkdown={!errorMessage && tileRenderMarkdown}
+          attachments={errorMessage ? [] : attachments}
           width="100%"
           className="h-full cursor-default"
           data-surface-mode={surfaceMode}

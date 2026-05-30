@@ -35,11 +35,21 @@
     "categoryNotFound": "Category \"{{category}}\" not found",
     "desktopConfig": "Failed to update desktop configuration",
     "duplicateShortcut": "Show/Hide shortcut cannot be the same as Quick Note shortcut",
+    "attachmentNotFound": "Attachment not found",
+    "invalidAttachmentSource": "Attachment source file is missing or unreadable",
     "noPool": "Notepad window pool not yet initialized",
     "noteNotFound": "Note not found",
     "unsupportedFile": "Only .md files are supported",
     "unsupportedShortcut": "{{field}} configuration is invalid",
-    "unsupportedShortcutGeneric": "Shortcut configuration is invalid"
+    "unsupportedShortcutGeneric": "Shortcut configuration is invalid",
+    "webdavConfigIncomplete": "Enter the WebDAV URL, username, and password",
+    "webdavConfigInvalid": "Invalid WebDAV URL",
+    "webdavDirectoryFailed": "Could not create the remote folder",
+    "webdavDownloadFailed": "Could not download the remote snapshot",
+    "webdavNetwork": "Could not connect to WebDAV",
+    "webdavSnapshotInvalid": "Remote snapshot is invalid",
+    "webdavSnapshotMissing": "Remote snapshot does not exist",
+    "webdavUploadFailed": "Could not upload the snapshot"
   },
   "markdown": {
     "copied": "Copied",
@@ -59,6 +69,13 @@
     },
     "confirm": {
       "unsavedExternalFile": "\"{{title}}\" has unsaved changes. Save to the original file?"
+    },
+    "attachments": {
+      "add": "Add attachment",
+      "adding": "Adding",
+      "delete": "Delete {{name}}",
+      "externalDisabled": "Attachments are unavailable for external files",
+      "insert": "Insert {{name}}"
     },
     "editor": {
       "confirmDelete": "Confirm delete?",
@@ -83,6 +100,24 @@
       "italicText": "Italic text",
       "listItem": "List item",
       "quoteText": "Blockquote"
+    },
+    "reminder": {
+      "clear": "Clear",
+      "hint": "Recognized as you type",
+      "label": "Reminder",
+      "placeholder": "Tomorrow 4 PM, weekly Monday, workdays…",
+      "presets": {
+        "later": "Later",
+        "monthlyFifth": "Monthly 5th",
+        "nextMonday": "Next Monday",
+        "tomorrowAfternoon": "Tomorrow PM",
+        "tomorrowMorning": "Tomorrow AM",
+        "tonight": "Tonight",
+        "weeklyMonday": "Weekly Mon",
+        "workdays": "Workdays"
+      },
+      "summary": "Reminder {{time}}",
+      "unrecognized": "Not recognized"
     },
     "search": {
       "empty": "No notes yet",
@@ -215,6 +250,25 @@
       "needsModifier": "Shortcut must include Ctrl, Option/Alt, or Command/Meta",
       "notSet": "Not set",
       "pressHint": "Press shortcut...; press Delete to clear."
+    },
+    "sync": {
+      "confirmDownload": "Downloading the remote snapshot will replace local notes, attachments, backgrounds, and app settings. Continue?",
+      "download": "Download",
+      "downloaded": "Downloaded",
+      "downloading": "Downloading",
+      "enabled": "WebDAV Sync",
+      "endpoint": "URL",
+      "idle": "Not synced",
+      "password": "Password",
+      "remotePath": "Folder",
+      "running": "Syncing",
+      "test": "Test",
+      "tested": "Connection OK",
+      "testing": "Testing",
+      "upload": "Upload",
+      "uploaded": "Uploaded",
+      "uploading": "Uploading",
+      "username": "User"
     },
     "theme": {
       "dark": "Dark",

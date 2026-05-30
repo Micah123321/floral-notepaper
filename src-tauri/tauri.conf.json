@@ -29,7 +29,12 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$DOCUMENT/花笺/backgrounds/**", "$APPDATA/花笺/backgrounds/**"]
+        "scope": [
+          "$DOCUMENT/花笺/backgrounds/**",
+          "$APPDATA/花笺/backgrounds/**",
+          "$DOCUMENT/花笺/attachments/**",
+          "$APPDATA/花笺/attachments/**"
+        ]
       }
     }
   },

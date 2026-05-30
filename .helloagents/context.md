@@ -1,7 +1,7 @@
 ---
 project: floral-notepaper
 version: 1.0.4
-updated_at: 2026-05-30 16:28:01
+updated_at: 2026-05-30 18:20:00
 source: code_scan
 ---
 
@@ -43,6 +43,8 @@ source: code_scan
 - 时间：chrono
 - ID：uuid
 - 删除移动到回收站：trash
+- WebDAV/HTTP 客户端：reqwest
+- 二进制快照编码：base64
 
 ## 项目概述
 
@@ -68,8 +70,11 @@ source: code_scan
 - `metadata.json`：笔记元数据索引。
 - `notes/`：Markdown 笔记文件目录。
 - `backgrounds/`：复制到应用数据目录内的背景图资源。
+- `attachments/`：内部笔记附件目录，按 `{noteId}/` 存放复制后的附件文件和 `attachments.json` 索引。
 
 `notes_dir` 保存时会通过 `ensure_notes_suffix()` 规范化为以 `notes` 结尾的路径。笔记目录存在安全限制，禁止使用磁盘根目录和 Windows 系统目录。
+
+WebDAV 同步采用单文件快照 `{remotePath}/floral-notepaper-sync.json`，覆盖可跨设备共享的设置、`metadata.json`、`notes/`、`backgrounds/` 和 `attachments/`。上传快照会清空 WebDAV 凭据、本机 `notesDir`，并把背景图路径降级为文件名；下载恢复会保留当前设备的 `notesDir` 与 WebDAV 凭据。
 
 ## 开发约定
 
@@ -81,6 +86,7 @@ source: code_scan
 - 删除笔记和分类时使用回收站，不做不可逆物理删除。
 - 新增设置字段需要同步 TypeScript `AppConfig`、Rust `AppConfig`、默认值、序列化兼容、设置面板和测试。
 - 新增 Tauri command 需要同步 Rust command、前端 API、Tauri capability 权限和测试。
+- 笔记附件只绑定内部笔记；外部文件编辑模式不创建或保存应用附件。
 
 ## 当前约束
 
@@ -89,4 +95,3 @@ source: code_scan
 - `.gitignore` 当前未包含 `.helloagents/`。知识库含项目特定状态，建议由维护者确认是否加入忽略列表。
 - `tauri.conf.json` 中 `beforeBuildCommand` 包含 Windows `taskkill` 命令，跨平台构建时需要注意 shell 差异。
 - Tauri `security.csp` 当前为 `null`，Markdown HTML 渲染依赖前端 sanitize 防护。
-

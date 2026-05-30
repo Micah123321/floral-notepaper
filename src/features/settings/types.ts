@@ -5,6 +5,14 @@ export type ThemeOption = "light" | "dark" | "system";
 export type TileColorMode = "system" | "custom";
 export type BackgroundFit = "cover" | "contain" | "repeat";
 
+export interface WebdavConfig {
+  enabled: boolean;
+  endpoint: string;
+  username: string;
+  password: string;
+  remotePath: string;
+}
+
 export interface AppConfig {
   locale: string;
   notesDir: string;
@@ -36,4 +44,12 @@ export interface AppConfig {
   backgroundScale?: number;
   backgroundPositionX?: number;
   backgroundPositionY?: number;
+  webdav: WebdavConfig;
+}
+
+export interface SyncStatus {
+  ok: boolean;
+  message: string;
+  syncedAt?: string;
+  remotePath: string;
 }

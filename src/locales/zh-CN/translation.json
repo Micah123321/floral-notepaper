@@ -35,11 +35,21 @@
     "categoryNotFound": "分类「{{category}}」不存在",
     "desktopConfig": "桌面配置更新失败",
     "duplicateShortcut": "显示/隐藏窗口快捷键不能与呼出小窗快捷键重复",
+    "attachmentNotFound": "找不到该附件",
+    "invalidAttachmentSource": "附件源文件不存在或不可读取",
     "noPool": "便签窗口池尚未初始化",
     "noteNotFound": "找不到该笔记",
     "unsupportedFile": "只支持导入 .md 文件",
     "unsupportedShortcut": "{{field}} 配置无效",
-    "unsupportedShortcutGeneric": "快捷键配置无效"
+    "unsupportedShortcutGeneric": "快捷键配置无效",
+    "webdavConfigIncomplete": "请填写 WebDAV 地址、用户和密码",
+    "webdavConfigInvalid": "WebDAV 地址无效",
+    "webdavDirectoryFailed": "无法创建远端目录",
+    "webdavDownloadFailed": "下载远端快照失败",
+    "webdavNetwork": "无法连接 WebDAV",
+    "webdavSnapshotInvalid": "远端快照无效",
+    "webdavSnapshotMissing": "远端快照不存在",
+    "webdavUploadFailed": "上传快照失败"
   },
   "markdown": {
     "copied": "已复制",
@@ -59,6 +69,13 @@
     },
     "confirm": {
       "unsavedExternalFile": "「{{title}}」有未保存的更改，是否保存到原文件？"
+    },
+    "attachments": {
+      "add": "添加附件",
+      "adding": "添加中",
+      "delete": "删除 {{name}}",
+      "externalDisabled": "外部文件不支持附件",
+      "insert": "插入 {{name}}"
     },
     "editor": {
       "confirmDelete": "确认删除？",
@@ -83,6 +100,24 @@
       "italicText": "斜体文本",
       "listItem": "列表项",
       "quoteText": "引用文本"
+    },
+    "reminder": {
+      "clear": "清除",
+      "hint": "输入时间后自动识别",
+      "label": "提醒",
+      "placeholder": "明天下午四点、每周一、每个工作日…",
+      "presets": {
+        "later": "稍后",
+        "monthlyFifth": "每月五号",
+        "nextMonday": "下周一",
+        "tomorrowAfternoon": "明天下午",
+        "tomorrowMorning": "明早",
+        "tonight": "今晚",
+        "weeklyMonday": "每周一",
+        "workdays": "工作日"
+      },
+      "summary": "提醒 {{time}}",
+      "unrecognized": "未识别为提醒时间"
     },
     "search": {
       "empty": "还没有笔记",
@@ -215,6 +250,25 @@
       "needsModifier": "快捷键需要包含 Ctrl、Option/Alt 或 Command/Meta",
       "notSet": "未设置",
       "pressHint": "按下快捷键；按 Delete 清空。"
+    },
+    "sync": {
+      "confirmDownload": "下载远端快照会覆盖本机笔记、附件、背景图和应用设置，继续？",
+      "download": "下载",
+      "downloaded": "已下载",
+      "downloading": "下载中",
+      "enabled": "WebDAV 同步",
+      "endpoint": "地址",
+      "idle": "未同步",
+      "password": "密码",
+      "remotePath": "目录",
+      "running": "同步中",
+      "test": "测试",
+      "tested": "连接正常",
+      "testing": "检测中",
+      "upload": "上传",
+      "uploaded": "已上传",
+      "uploading": "上传中",
+      "username": "用户"
     },
     "theme": {
       "dark": "深色",

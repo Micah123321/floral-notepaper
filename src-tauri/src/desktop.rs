@@ -1835,6 +1835,7 @@ mod tests {
             surface_width: None,
             surface_height: None,
             toggle_visibility_shortcut: "Ctrl+Shift+K".into(),
+            webdav: Default::default(),
         };
 
         let error = match shortcut_bindings_from_config(&config) {
@@ -1886,6 +1887,7 @@ mod tests {
             surface_width: None,
             surface_height: None,
             toggle_visibility_shortcut: String::new(),
+            webdav: Default::default(),
         };
         let next = AppConfig {
             locale: "en-US".into(),
@@ -1918,6 +1920,7 @@ mod tests {
             surface_width: None,
             surface_height: None,
             toggle_visibility_shortcut: "Ctrl+Shift+H".into(),
+            webdav: Default::default(),
         };
 
         assert_eq!(

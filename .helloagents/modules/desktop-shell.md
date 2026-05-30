@@ -11,6 +11,7 @@ updated_at: 2026-05-30 16:28:01
 
 - `src-tauri/src/desktop.rs`
 - `src-tauri/src/lib.rs`
+- `src-tauri/src/services/sync.rs`
 - `src/features/windows/api.ts`
 - `src/features/windows/controls.ts`
 - `src/features/windows/windowRoutes.ts`
@@ -38,6 +39,7 @@ updated_at: 2026-05-30 16:28:01
 - `save_surface_size()` 在关闭便签或磁贴前保存窗口尺寸。
 - 单实例插件在第二实例启动时把文件路径转为 `open-external-file` 事件，并显示主窗口。
 - 冷启动文件路径存入 `STARTUP_FILE`，前端通过 `take_startup_file()` 消费，避免初始化竞态。
+- `sync_webdav_download` 恢复远端快照后会广播 `config-changed` 和 `notes-changed`，让主窗口和其他窗口刷新运行时状态。
 
 ## 托盘与快捷键
 
@@ -66,10 +68,11 @@ updated_at: 2026-05-30 16:28:01
 
 权限包含窗口关闭、最小化、最大化、位置尺寸、置顶、拖拽、缩放、显示隐藏、聚焦、dialog open/save 和 opener。
 
+opener 的 `allow-open-path` 仅覆盖应用管理目录下的附件路径，用于 Markdown 预览打开本地附件链接。
+
 ## 维护注意
 
 - 新增窗口 label 前缀时必须同步 capability、路由解析、窗口事件处理和可见性切换逻辑。
 - 修改窗口尺寸行为时同步 `saved_surface_specs()`、前端 surface mode 动画和相关测试。
 - 新增 tray menu 项时同步 `TrayMenuAction`、`tray_menu_action()`、`tray_menu_specs()`、菜单构建、事件处理和本地化。
 - 新增全局快捷键字段时必须同步冲突检测、运行时替换逻辑和重复快捷键校验。
-

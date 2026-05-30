@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { emit, listen } from "@tauri-apps/api/event";
 import { exportMarkdownNote, importMarkdownNote } from "../features/importExport/api";
 import { MarkdownPreview } from "../features/markdown/MarkdownPreview";
+import { attachmentMarkdown, chooseAttachmentFile } from "../features/notes/attachments";
 import {
   chooseNotesDirectory,
   getConfig,
@@ -14,17 +15,21 @@ import {
 import type { AppConfig, ViewMode } from "../features/settings/types";
 import { normalizeTileColor } from "../features/settings/tileColor";
 import { BackgroundLayer } from "./BackgroundLayer";
+import { ReminderBadge, ReminderInput } from "./ReminderInput";
 import { SettingsPanel } from "./SettingsPanel";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
 import {
+  addNoteAttachment,
   createNote,
   createCategory,
+  deleteNoteAttachment,
   deleteCategory,
   deleteNote,
   getErrorMessage,
   getFileModifiedTime,
   getNote,
   listCategories,
+  listNoteAttachments,
   listNotes,
   moveNoteCategory,
   readExternalFile,
@@ -32,7 +37,14 @@ import {
   saveExternalFile,
   updateNote,
 } from "../features/notes/api";
-import type { ExternalFile, Note, NoteMetadata } from "../features/notes/types";
+import type {
+  ExternalFile,
+  Note,
+  NoteAttachment,
+  NoteMetadata,
+  Reminder,
+} from "../features/notes/types";
+import { AttachmentStrip } from "./AttachmentStrip";
 import {
   countNoteChars,
   filterNotes,
@@ -277,7 +289,7 @@ export function MainWindow({
   initialConfig = undefined,
   initialErrorMessage = null,
 }: MainWindowProps = {}) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [notes, setNotes] = useState<NoteMetadata[]>([]);
   const [externalFiles, setExternalFiles] = useState<ExternalFile[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -288,6 +300,9 @@ export function MainWindow({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
+  const [reminder, setReminder] = useState<Reminder | null>(null);
+  const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -342,6 +357,7 @@ export function MainWindow({
   );
 
   const isExternal = selectedExternalFile !== null;
+  const attachmentsDisabled = !selectedId || isExternal;
 
   const noteMenuTarget = useMemo(
     () => notes.find((note) => note.id === noteMenu?.noteId) ?? null,
@@ -461,6 +477,8 @@ export function MainWindow({
     setSelectedId(note.id);
     setTitle(note.title);
     setContent(note.content);
+    setReminder(note.reminder ?? null);
+    setAttachments([]);
     setSaveState("saved");
     setErrorMessage(null);
     setNoteTransitionKey((k) => k + 1);
@@ -480,8 +498,9 @@ export function MainWindow({
   const loadNote = useCallback(
     async (id: string) => {
       setErrorMessage(null);
-      const note = await getNote(id);
+      const [note, loadedAttachments] = await Promise.all([getNote(id), listNoteAttachments(id)]);
       applyNote(note);
+      setAttachments(loadedAttachments);
       replaceNoteMetadata(note);
     },
     [applyNote, replaceNoteMetadata],
@@ -498,6 +517,8 @@ export function MainWindow({
     setSelectedId(null);
     setTitle("");
     setContent("");
+    setReminder(null);
+    setAttachments([]);
     setSaveState("idle");
   }, []);
 
@@ -528,6 +549,8 @@ export function MainWindow({
       setSelectedId(filePath);
       setTitle(displayTitle);
       setContent(fileContent);
+      setReminder(null);
+      setAttachments([]);
       setSaveState("saved");
       setNoteTransitionKey((k) => k + 1);
       externalFileMtimeRef.current = mtime;
@@ -555,8 +578,14 @@ export function MainWindow({
         setCategories(loadedCategories);
         setCollapsedCategories(new Set(loadedCategories));
         if (loadedNotes[0]) {
-          const note = await getNote(loadedNotes[0].id);
-          if (!cancelled) applyNote(note);
+          const [note, loadedAttachments] = await Promise.all([
+            getNote(loadedNotes[0].id),
+            listNoteAttachments(loadedNotes[0].id),
+          ]);
+          if (!cancelled) {
+            applyNote(note);
+            setAttachments(loadedAttachments);
+          }
         } else {
           clearCurrentNote();
         }
@@ -588,11 +617,13 @@ export function MainWindow({
         const stillExists = loaded.some((n) => n.id === currentId);
         if (stillExists) {
           if (saveStateRef.current !== "dirty") {
-            void getNote(currentId)
-              .then((note) => {
+            void Promise.all([getNote(currentId), listNoteAttachments(currentId)])
+              .then(([note, loadedAttachments]) => {
                 if (selectedIdRef.current !== currentId) return;
                 setTitle(note.title);
                 setContent(note.content);
+                setReminder(note.reminder ?? null);
+                setAttachments(loadedAttachments);
                 setSaveState("saved");
               })
               .catch(() => undefined);
@@ -610,6 +641,19 @@ export function MainWindow({
       void unlisten.then((fn) => fn());
     };
   }, [refreshNotes, loadNote, clearCurrentNote]);
+
+  useEffect(() => {
+    const unlisten = listen<AppConfig>("config-changed", (event) => {
+      setSettingsConfig(event.payload);
+      if (settingsSaveTimer.current === null) {
+        setSavedNotesDir(event.payload.notesDir);
+      }
+      setViewMode(normalizeViewMode(event.payload.defaultViewMode));
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
 
   useEffect(() => {
     function handleFocus() {
@@ -752,8 +796,9 @@ export function MainWindow({
     setSaveState("saving");
     try {
       const category = selectedNote?.category ?? "";
-      const note = await updateNote(selectedId, { title, content, category });
+      const note = await updateNote(selectedId, { title, content, category, reminder });
       replaceNoteMetadata(note);
+      setReminder(note.reminder ?? null);
       setSaveState("saved");
       setErrorMessage(null);
       return note;
@@ -766,6 +811,7 @@ export function MainWindow({
     content,
     isExternal,
     replaceNoteMetadata,
+    reminder,
     selectedExternalFile,
     selectedId,
     selectedNote,
@@ -854,45 +900,58 @@ export function MainWindow({
 
   const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const saveSettingsConfig = useCallback(
+    async (nextConfig: AppConfig) => {
+      if (settingsSaveTimer.current) {
+        clearTimeout(settingsSaveTimer.current);
+        settingsSaveTimer.current = null;
+      }
+
+      const previousNotesDir = savedNotesDir ?? nextConfig.notesDir;
+      const normalizedConfig = {
+        ...nextConfig,
+        defaultViewMode: normalizeViewMode(nextConfig.defaultViewMode),
+        tileColor: normalizeTileColor(nextConfig.tileColor),
+      };
+      const savedConfig = await saveConfig(normalizedConfig);
+      setSettingsConfig(savedConfig);
+      setSavedNotesDir(savedConfig.notesDir);
+      setViewMode(normalizeViewMode(savedConfig.defaultViewMode));
+
+      if (savedConfig.notesDir !== previousNotesDir) {
+        const loadedNotes = await refreshNotes();
+        if (loadedNotes[0]) {
+          await loadNote(loadedNotes[0].id);
+        } else {
+          clearCurrentNote();
+        }
+      }
+
+      return savedConfig;
+    },
+    [savedNotesDir, refreshNotes, loadNote, clearCurrentNote],
+  );
+
   const persistSettings = useCallback(
     (nextConfig: AppConfig) => {
       if (settingsSaveTimer.current) {
         clearTimeout(settingsSaveTimer.current);
       }
-      settingsSaveTimer.current = setTimeout(async () => {
-        const previousNotesDir = savedNotesDir ?? nextConfig.notesDir;
-        const normalizedConfig = {
-          ...nextConfig,
-          defaultViewMode: normalizeViewMode(nextConfig.defaultViewMode),
-          tileColor: normalizeTileColor(nextConfig.tileColor),
-        };
-        try {
-          const savedConfig = await saveConfig(normalizedConfig);
-          setSettingsConfig(savedConfig);
-          setSavedNotesDir(savedConfig.notesDir);
-          setViewMode(normalizeViewMode(savedConfig.defaultViewMode));
-
-          if (savedConfig.notesDir !== previousNotesDir) {
-            const loadedNotes = await refreshNotes();
-            if (loadedNotes[0]) {
-              await loadNote(loadedNotes[0].id);
-            } else {
-              clearCurrentNote();
-            }
-          }
-        } catch (error) {
+      settingsSaveTimer.current = setTimeout(() => {
+        settingsSaveTimer.current = null;
+        void saveSettingsConfig(nextConfig).catch((error) => {
           setErrorMessage(getErrorMessage(error));
-        }
+        });
       }, 300);
     },
-    [savedNotesDir, refreshNotes, loadNote, clearCurrentNote],
+    [saveSettingsConfig],
   );
 
   const handleSettingsChange = useCallback(
     (nextConfig: AppConfig) => {
       setSettingsConfig(nextConfig);
-      void emit("config-changed", nextConfig);
       persistSettings(nextConfig);
+      void emit("config-changed", nextConfig);
     },
     [persistSettings],
   );
@@ -955,6 +1014,8 @@ export function MainWindow({
       setSelectedId(id);
       setTitle(file.title);
       setContent(fileContent);
+      setReminder(null);
+      setAttachments([]);
       setSaveState("saved");
       setErrorMessage(null);
       setNoteTransitionKey((k) => k + 1);
@@ -1130,6 +1191,83 @@ export function MainWindow({
   const markDirty = () => {
     if (selectedId) setSaveState("dirty");
   };
+
+  const handleReminderChange = useCallback(
+    (nextReminder: Reminder | null) => {
+      setReminder(nextReminder);
+      if (selectedIdRef.current && !selectedExternalFile) setSaveState("dirty");
+    },
+    [selectedExternalFile],
+  );
+
+  const insertTextAtCursor = useCallback(
+    (text: string) => {
+      const textarea = contentRef.current;
+      if (!textarea) {
+        const prefix = content.trimEnd() ? "\n\n" : "";
+        setContent((current) => `${current}${prefix}${text}`);
+        markDirty();
+        return;
+      }
+
+      const { selectionStart: start, selectionEnd: end, value } = textarea;
+      const before = value.slice(0, start);
+      const after = value.slice(end);
+      const lead = before && !before.endsWith("\n") ? "\n\n" : "";
+      const tail = after && !after.startsWith("\n") ? "\n\n" : "";
+      const nextText = `${lead}${text}${tail}`;
+      const nextContent = before + nextText + after;
+      const nextCursor = before.length + nextText.length;
+
+      setContent(nextContent);
+      markDirty();
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(nextCursor, nextCursor);
+      });
+    },
+    [content],
+  );
+
+  const handleInsertAttachment = useCallback(
+    (attachment: NoteAttachment) => {
+      insertTextAtCursor(attachmentMarkdown(attachment));
+    },
+    [insertTextAtCursor],
+  );
+
+  const handleAddAttachment = useCallback(async () => {
+    if (!selectedId || isExternal) return;
+
+    setErrorMessage(null);
+    try {
+      const sourcePath = await chooseAttachmentFile();
+      if (!sourcePath) return;
+      setAttachmentsLoading(true);
+      const attachment = await addNoteAttachment(selectedId, sourcePath);
+      setAttachments((current) => [attachment, ...current]);
+      handleInsertAttachment(attachment);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  }, [handleInsertAttachment, isExternal, selectedId]);
+
+  const handleDeleteAttachment = useCallback(
+    async (attachmentId: string) => {
+      if (!selectedId || isExternal) return;
+
+      setErrorMessage(null);
+      try {
+        await deleteNoteAttachment(selectedId, attachmentId);
+        setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
+      } catch (error) {
+        setErrorMessage(getErrorMessage(error));
+      }
+    },
+    [isExternal, selectedId],
+  );
 
   const handleUndo = () => {
     if (!selectedId) return;
@@ -1677,6 +1815,13 @@ export function MainWindow({
                                 {note.preview ||
                                   t("common.blankNote", { defaultValue: "空白笔记" })}
                               </p>
+                              {note.reminder && (
+                                <ReminderBadge
+                                  value={note.reminder}
+                                  locale={i18n.language}
+                                  className="mt-1 flex w-fit max-w-full"
+                                />
+                              )}
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
                                   {formatTime(note.updatedAt)}
@@ -1853,6 +1998,13 @@ export function MainWindow({
                                     {note.preview ||
                                       t("common.blankNote", { defaultValue: "空白笔记" })}
                                   </p>
+                                  {note.reminder && (
+                                    <ReminderBadge
+                                      value={note.reminder}
+                                      locale={i18n.language}
+                                      className="mt-1 flex w-fit max-w-full"
+                                    />
+                                  )}
 
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-ink-ghost/60 font-mono tabular-nums">
@@ -1990,6 +2142,34 @@ export function MainWindow({
                   {t("common.save", { defaultValue: "保存" })}
                 </button>
 
+                <button
+                  onClick={() => void handleAddAttachment()}
+                  disabled={attachmentsDisabled || attachmentsLoading}
+                  aria-label={t("main.attachments.add", { defaultValue: "添加附件" })}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-ghost hover:text-bamboo hover:bg-bamboo-mist/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={
+                    isExternal
+                      ? t("main.attachments.externalDisabled", {
+                          defaultValue: "外部文件不支持附件",
+                        })
+                      : t("main.attachments.add", { defaultValue: "添加附件" })
+                  }
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+
                 {deleteConfirm ? (
                   <div
                     className={`flex items-center gap-1 ml-1 ${deleteExiting ? "animate-delete-confirm-exit" : "animate-delete-confirm"}`}
@@ -2104,7 +2284,34 @@ export function MainWindow({
                 >
                   {saveStateLabel[saveState]}
                 </span>
+                {!isExternal && reminder && (
+                  <>
+                    <span className="text-[10px] text-ink-ghost/40">·</span>
+                    <ReminderBadge
+                      value={reminder}
+                      locale={i18n.language}
+                      className="max-w-[220px]"
+                    />
+                  </>
+                )}
               </div>
+              {selectedId && !isExternal && (
+                <ReminderInput
+                  value={reminder}
+                  locale={i18n.language}
+                  disabled={!selectedId}
+                  onChange={handleReminderChange}
+                />
+              )}
+              {selectedId && !isExternal && (
+                <AttachmentStrip
+                  attachments={attachments}
+                  loading={attachmentsLoading}
+                  onAdd={() => void handleAddAttachment()}
+                  onInsert={handleInsertAttachment}
+                  onDelete={(attachmentId) => void handleDeleteAttachment(attachmentId)}
+                />
+              )}
             </div>
 
             <div
@@ -2209,6 +2416,7 @@ export function MainWindow({
                           content={content}
                           fontSize={settingsConfig?.fontSize ?? 14}
                           renderHtml={settingsConfig?.renderHtmlMarkdown ?? false}
+                          attachments={attachments}
                         />
                       </div>
                     </div>
@@ -2256,6 +2464,7 @@ export function MainWindow({
                 <SettingsPanel
                   config={settingsConfig}
                   onChange={handleSettingsChange}
+                  onSave={saveSettingsConfig}
                   onChooseNotesDir={() => void handleChooseNotesDir()}
                   onClose={handleCloseSettings}
                 />

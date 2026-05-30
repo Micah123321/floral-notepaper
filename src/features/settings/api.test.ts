@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   checkGlobalShortcut,
   chooseNotesDirectory,
+  downloadWebdavSnapshot,
   getConfig,
   normalizeViewMode,
   saveConfig,
+  testWebdavSync,
+  uploadWebdavSnapshot,
 } from "./api";
 import type { AppConfig } from "./types";
 
@@ -50,6 +53,13 @@ describe("settings api", () => {
       tileRenderMarkdown: false,
       renderHtmlMarkdown: false,
       openAtCursor: true,
+      webdav: {
+        enabled: false,
+        endpoint: "",
+        username: "",
+        password: "",
+        remotePath: "floral-notepaper",
+      },
     };
     mockedInvoke.mockResolvedValue(config);
 
@@ -81,6 +91,13 @@ describe("settings api", () => {
       tileRenderMarkdown: false,
       renderHtmlMarkdown: false,
       openAtCursor: true,
+      webdav: {
+        enabled: true,
+        endpoint: "https://example.com/dav",
+        username: "user",
+        password: "pass",
+        remotePath: "floral-notepaper",
+      },
     };
     mockedInvoke.mockResolvedValue(config);
 
@@ -102,6 +119,46 @@ describe("settings api", () => {
     expect(invoke).toHaveBeenCalledWith("global_shortcut_check", {
       shortcut: "Command+Space",
     });
+  });
+
+  test("tests WebDAV sync through Rust", async () => {
+    const result = {
+      ok: true,
+      message: "WebDAV connection is available",
+      syncedAt: "2026-05-30T10:00:00Z",
+      remotePath: "https://example.com/dav/floral-notepaper/floral-notepaper-sync.json",
+    };
+    mockedInvoke.mockResolvedValue(result);
+
+    await expect(testWebdavSync()).resolves.toBe(result);
+
+    expect(invoke).toHaveBeenCalledWith("sync_webdav_test");
+  });
+
+  test("uploads WebDAV snapshot through Rust", async () => {
+    const result = {
+      ok: true,
+      message: "Snapshot uploaded",
+      remotePath: "https://example.com/dav/floral-notepaper/floral-notepaper-sync.json",
+    };
+    mockedInvoke.mockResolvedValue(result);
+
+    await expect(uploadWebdavSnapshot()).resolves.toBe(result);
+
+    expect(invoke).toHaveBeenCalledWith("sync_webdav_upload");
+  });
+
+  test("downloads WebDAV snapshot through Rust", async () => {
+    const result = {
+      ok: true,
+      message: "Snapshot downloaded",
+      remotePath: "https://example.com/dav/floral-notepaper/floral-notepaper-sync.json",
+    };
+    mockedInvoke.mockResolvedValue(result);
+
+    await expect(downloadWebdavSnapshot()).resolves.toBe(result);
+
+    expect(invoke).toHaveBeenCalledWith("sync_webdav_download");
   });
 
   test("normalizes supported view modes and falls back to split", () => {

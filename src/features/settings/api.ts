@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppConfig, ViewMode } from "./types";
+import type { AppConfig, SyncStatus, ViewMode } from "./types";
 
 export interface ShortcutCheckResult {
   available: boolean;
@@ -14,6 +14,18 @@ export function getConfig(): Promise<AppConfig> {
 
 export function saveConfig(config: AppConfig): Promise<AppConfig> {
   return invoke("config_save", { config });
+}
+
+export function testWebdavSync(): Promise<SyncStatus> {
+  return invoke("sync_webdav_test");
+}
+
+export function uploadWebdavSnapshot(): Promise<SyncStatus> {
+  return invoke("sync_webdav_upload");
+}
+
+export function downloadWebdavSnapshot(): Promise<SyncStatus> {
+  return invoke("sync_webdav_download");
 }
 
 export function checkGlobalShortcut(shortcut: string): Promise<ShortcutCheckResult> {

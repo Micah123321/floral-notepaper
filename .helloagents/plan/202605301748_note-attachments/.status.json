@@ -1,0 +1,10 @@
+{
+  "status": "completed",
+  "completed": 9,
+  "failed": 0,
+  "pending": 0,
+  "total": 9,
+  "percent": 100,
+  "current": "附件功能已实现并完成前端、Rust 和 Tauri debug 构建验证",
+  "updated_at": "2026-05-30 18:39:00"
+}

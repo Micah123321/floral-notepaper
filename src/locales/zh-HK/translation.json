@@ -35,11 +35,21 @@
     "categoryNotFound": "分類「{{category}}」不存在",
     "desktopConfig": "桌面配置更新失敗",
     "duplicateShortcut": "顯示／隱藏視窗快捷鍵不能與呼出小窗快捷鍵重複",
+    "attachmentNotFound": "找不到該附件",
+    "invalidAttachmentSource": "附件源檔案不存在或無法讀取",
     "noPool": "便箋視窗池尚未初始化",
     "noteNotFound": "找不到該筆記",
     "unsupportedFile": "僅支援匯入 .md 檔案",
     "unsupportedShortcut": "{{field}} 配置無效",
-    "unsupportedShortcutGeneric": "快捷鍵配置無效"
+    "unsupportedShortcutGeneric": "快捷鍵配置無效",
+    "webdavConfigIncomplete": "請填寫 WebDAV 地址、用戶和密碼",
+    "webdavConfigInvalid": "WebDAV 地址無效",
+    "webdavDirectoryFailed": "無法建立遠端目錄",
+    "webdavDownloadFailed": "下載遠端快照失敗",
+    "webdavNetwork": "無法連接 WebDAV",
+    "webdavSnapshotInvalid": "遠端快照無效",
+    "webdavSnapshotMissing": "遠端快照不存在",
+    "webdavUploadFailed": "上傳快照失敗"
   },
   "markdown": {
     "copied": "已複製",
@@ -59,6 +69,13 @@
     },
     "confirm": {
       "unsavedExternalFile": "「{{title}}」有未儲存的變更，是否儲存到原檔案？"
+    },
+    "attachments": {
+      "add": "新增附件",
+      "adding": "新增中",
+      "delete": "刪除 {{name}}",
+      "externalDisabled": "外部檔案不支援附件",
+      "insert": "插入 {{name}}"
     },
     "editor": {
       "confirmDelete": "確認刪除？",
@@ -83,6 +100,24 @@
       "italicText": "斜體文字",
       "listItem": "清單項目",
       "quoteText": "引用文字"
+    },
+    "reminder": {
+      "clear": "清除",
+      "hint": "輸入時間後自動識別",
+      "label": "提醒",
+      "placeholder": "明天下午四點、每週一、每個工作日…",
+      "presets": {
+        "later": "稍後",
+        "monthlyFifth": "每月五號",
+        "nextMonday": "下週一",
+        "tomorrowAfternoon": "明天下午",
+        "tomorrowMorning": "明早",
+        "tonight": "今晚",
+        "weeklyMonday": "每週一",
+        "workdays": "工作日"
+      },
+      "summary": "提醒 {{time}}",
+      "unrecognized": "未識別為提醒時間"
     },
     "search": {
       "empty": "還沒有筆記",
@@ -215,6 +250,25 @@
       "needsModifier": "快捷鍵需要包含 Ctrl、Option/Alt 或 Command/Meta",
       "notSet": "未設定",
       "pressHint": "按下快捷鍵；按 Delete 清除。"
+    },
+    "sync": {
+      "confirmDownload": "下載遠端快照會覆蓋本機筆記、附件、背景圖片和應用設定，繼續？",
+      "download": "下載",
+      "downloaded": "已下載",
+      "downloading": "下載中",
+      "enabled": "WebDAV 同步",
+      "endpoint": "地址",
+      "idle": "未同步",
+      "password": "密碼",
+      "remotePath": "目錄",
+      "running": "同步中",
+      "test": "測試",
+      "tested": "連接正常",
+      "testing": "檢測中",
+      "upload": "上傳",
+      "uploaded": "已上傳",
+      "uploading": "上傳中",
+      "username": "用戶"
     },
     "theme": {
       "dark": "深色",
