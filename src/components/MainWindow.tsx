@@ -631,11 +631,11 @@ export function MainWindow({
       setIsLoading(true);
       try {
         const loadedConfig = await getConfig();
-        let startupSyncError: string | null = null;
+        let pendingStartupSyncError: string | null = null;
         try {
           await runStartupWebdavSync(loadedConfig, t);
         } catch (error) {
-          startupSyncError = getErrorMessage(error);
+          pendingStartupSyncError = getErrorMessage(error);
         }
         const [syncedConfig, loadedNotes, loadedCategories] = await Promise.all([
           getConfig(),
@@ -648,9 +648,6 @@ export function MainWindow({
         setViewMode(normalizeViewMode(syncedConfig.defaultViewMode));
         setNotes(loadedNotes);
         setCategories(loadedCategories);
-        if (startupSyncError) {
-          setErrorMessage(startupSyncError);
-        }
         setCollapsedCategories(new Set(loadedCategories));
         if (loadedNotes[0]) {
           const [note, loadedAttachments] = await Promise.all([
@@ -663,6 +660,9 @@ export function MainWindow({
           }
         } else {
           clearCurrentNote();
+        }
+        if (!cancelled && pendingStartupSyncError) {
+          setErrorMessage(pendingStartupSyncError);
         }
 
         if (!cancelled) {
