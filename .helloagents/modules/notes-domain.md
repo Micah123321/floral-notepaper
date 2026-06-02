@@ -1,6 +1,6 @@
 ---
 module: notes-domain
-updated_at: 2026-05-30 18:20:00
+updated_at: 2026-06-02 16:06:00
 ---
 
 # 笔记领域
@@ -41,6 +41,7 @@ Rust 与 TypeScript 使用 camelCase 序列化约定。
 - preview 取压缩空白后的前 80 个字符。
 - `reminder` 保存在 `metadata.json` 中；旧元数据缺少该字段时按 `None` / `null` 兼容读取。
 - 提醒解析在前端同步完成，首批支持“明天下午四点”“每周一”“每月五号上午10点”“每个工作日”等中文口语表达。
+- `extractReminderFromTitle()` 会从笔记标题中提取滴答清单式时间片段，例如“明早九点开会”保存为 `reminder.input = "明早九点"`，标题原文保持不变。
 - 当前 reminder 只表示本地提醒预设和下一次时间，不做系统通知调度，也不接入滴答清单账号或外部 API。
 - 附件只绑定内部笔记，存储在 `base_dir/attachments/{noteId}/`，每个笔记附件目录内有 `attachments.json` 索引。
 - 添加附件时复制源文件到应用数据目录，内部文件名使用 UUID 加安全扩展名，Markdown 引用为 `floral-attachment://{noteId}/{storedFileName}`。

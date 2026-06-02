@@ -16,6 +16,7 @@ import type { AppConfig, ViewMode } from "../features/settings/types";
 import { normalizeTileColor } from "../features/settings/tileColor";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { ReminderBadge, ReminderInput } from "./ReminderInput";
+import { extractReminderFromTitle } from "../features/reminders/parser";
 import { SettingsPanel } from "./SettingsPanel";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
 import {
@@ -339,6 +340,7 @@ export function MainWindow({
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const externalFileMtimeRef = useRef<number>(0);
   const lastExternalSaveRef = useRef<number>(0);
+  const titleReminderSourceRef = useRef<string | null>(null);
   const saveStateRef = useRef(saveState);
   saveStateRef.current = saveState;
   const selectedIdRef = useRef(selectedId);
@@ -474,6 +476,7 @@ export function MainWindow({
   const charCount = useMemo(() => countNoteChars(content), [content]);
 
   const applyNote = useCallback((note: Note) => {
+    titleReminderSourceRef.current = null;
     setSelectedId(note.id);
     setTitle(note.title);
     setContent(note.content);
@@ -514,6 +517,7 @@ export function MainWindow({
   }, []);
 
   const clearCurrentNote = useCallback(() => {
+    titleReminderSourceRef.current = null;
     setSelectedId(null);
     setTitle("");
     setContent("");
@@ -549,6 +553,7 @@ export function MainWindow({
       setSelectedId(filePath);
       setTitle(displayTitle);
       setContent(fileContent);
+      titleReminderSourceRef.current = null;
       setReminder(null);
       setAttachments([]);
       setSaveState("saved");
@@ -1194,8 +1199,35 @@ export function MainWindow({
 
   const handleReminderChange = useCallback(
     (nextReminder: Reminder | null) => {
+      titleReminderSourceRef.current = null;
       setReminder(nextReminder);
       if (selectedIdRef.current && !selectedExternalFile) setSaveState("dirty");
+    },
+    [selectedExternalFile],
+  );
+
+  const handleTitleChange = useCallback(
+    (nextTitle: string) => {
+      setTitle(nextTitle);
+
+      if (!selectedIdRef.current || selectedExternalFile) {
+        if (selectedIdRef.current) setSaveState("dirty");
+        return;
+      }
+
+      const extracted = extractReminderFromTitle(nextTitle);
+      if (extracted) {
+        titleReminderSourceRef.current = extracted.sourceText;
+        setReminder(extracted.reminder);
+      } else if (
+        titleReminderSourceRef.current &&
+        !nextTitle.includes(titleReminderSourceRef.current)
+      ) {
+        titleReminderSourceRef.current = null;
+        setReminder(null);
+      }
+
+      setSaveState("dirty");
     },
     [selectedExternalFile],
   );
@@ -2242,10 +2274,7 @@ export function MainWindow({
               <input
                 type="text"
                 value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  markDirty();
-                }}
+                onChange={(event) => handleTitleChange(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();

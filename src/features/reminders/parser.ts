@@ -17,6 +17,11 @@ export interface ReminderPreset {
   defaultLabel: string;
 }
 
+export interface ExtractedReminder {
+  reminder: Reminder;
+  sourceText: string;
+}
+
 interface TimeOfDay {
   hour: number;
   minute: number;
@@ -119,6 +124,22 @@ export function parseReminderInput(input: string, now = new Date()): Reminder | 
   if (oneTime) return oneTime;
 
   return null;
+}
+
+export function extractReminderFromTitle(
+  title: string,
+  now = new Date(),
+): ExtractedReminder | null {
+  const normalizedTitle = normalizeInput(title);
+  if (!normalizedTitle) return null;
+
+  const sourceText = titleReminderCandidates(normalizedTitle).find((candidate) =>
+    parseReminderInput(candidate, now),
+  );
+  if (!sourceText) return null;
+
+  const reminder = parseReminderInput(sourceText, now);
+  return reminder ? { reminder, sourceText } : null;
 }
 
 export function formatReminderSummary(reminder: Reminder, locale = "zh-CN"): string {
@@ -322,6 +343,28 @@ function normalizeInput(input: string): string {
     .replace(/\s+/g, "")
     .replace(/周天/g, "周日")
     .replace(/星期天/g, "星期日");
+}
+
+function titleReminderCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  const patterns = [
+    /稍后|晚点|稍等提醒/g,
+    /(?:每个工作日|每工作日|工作日)(?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)?(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})?(?:点|时)?(?:半|[0-5]?\d分?)?/g,
+    /每(?:周|星期|礼拜)[一二三四五六日天1-7](?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)?(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})?(?:点|时)?(?:半|[0-5]?\d分?)?/g,
+    /每(?:月|个月)(?:[0-3]?\d|[零〇一二两三四五六七八九十]{1,4})(?:号|日)(?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)?(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})?(?:点|时)?(?:半|[0-5]?\d分?)?/g,
+    /下(?:周|星期|礼拜)[一二三四五六日天1-7](?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)?(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})?(?:点|时)?(?:半|[0-5]?\d分?)?/g,
+    /(?:今天|明天|后天|今晚|明早|明天下午|明天上午)?(?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})(?:点|时)(?:半|[0-5]?\d分?)?/g,
+    /(?:今天|明天|后天|今晚|明早|明天下午|明天上午)(?:凌晨|早上|上午|中午|下午|晚上|晚间|晚)?(?:[0-2]?\d|[零〇一二两三四五六七八九十]{1,4})?(?:点|时)?(?:半|[0-5]?\d分?)?/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const candidate = match[0];
+      if (candidate) candidates.push(candidate);
+    }
+  }
+
+  return [...new Set(candidates)].sort((left, right) => right.length - left.length);
 }
 
 function formatTime(time: TimeOfDay): string {

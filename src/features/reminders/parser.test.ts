@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatReminderSummary, parseReminderInput } from "./parser";
+import { extractReminderFromTitle, formatReminderSummary, parseReminderInput } from "./parser";
 
 const base = new Date(2026, 4, 30, 8, 30, 0, 0); // Saturday
 
@@ -96,5 +96,40 @@ describe("reminder parser", () => {
 
     expect(reminder && formatReminderSummary(reminder, "zh-CN")).toBe("每月5号 10:00");
     expect(reminder && formatReminderSummary(reminder, "en-US")).toBe("Monthly on day 5 10:00");
+  });
+
+  it("extracts smart reminders from note titles", () => {
+    const extracted = extractReminderFromTitle("明早九点开会", base);
+
+    expect(extracted?.sourceText).toBe("明早九点");
+    expect(extracted?.reminder.input).toBe("明早九点");
+    expect(extracted?.reminder.kind).toBe("once");
+    expect(extracted?.reminder.timeOfDay).toBe("09:00");
+    expect(localParts(extracted?.reminder.nextAt ?? "")).toEqual({
+      year: 2026,
+      month: 5,
+      day: 31,
+      hour: 9,
+      minute: 0,
+    });
+  });
+
+  it("extracts recurring reminder phrases from mixed titles", () => {
+    const weekly = extractReminderFromTitle("写周报每周一", base);
+    const monthly = extractReminderFromTitle("交房租每月五号上午10点", base);
+    const workday = extractReminderFromTitle("站会每个工作日", base);
+
+    expect(weekly?.sourceText).toBe("每周一");
+    expect(weekly?.reminder.kind).toBe("weekly");
+    expect(weekly?.reminder.weekday).toBe(1);
+    expect(monthly?.sourceText).toBe("每月五号上午10点");
+    expect(monthly?.reminder.kind).toBe("monthly");
+    expect(monthly?.reminder.dayOfMonth).toBe(5);
+    expect(workday?.sourceText).toBe("每个工作日");
+    expect(workday?.reminder.kind).toBe("workday");
+  });
+
+  it("does not extract reminders from plain titles", () => {
+    expect(extractReminderFromTitle("整理花笺提醒功能")).toBeNull();
   });
 });
