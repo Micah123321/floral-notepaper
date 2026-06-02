@@ -4,6 +4,8 @@ export type ThemeOption = "light" | "dark" | "system";
 
 export type TileColorMode = "system" | "custom";
 export type BackgroundFit = "cover" | "contain" | "repeat";
+export type WebdavConflictStrategy = "ask" | "preferLocal" | "preferRemote";
+export type WebdavSyncAction = "none" | "ask" | "upload" | "download";
 
 export interface WebdavConfig {
   enabled: boolean;
@@ -11,6 +13,20 @@ export interface WebdavConfig {
   username: string;
   password: string;
   remotePath: string;
+  syncOnStartup: boolean;
+  conflictStrategy: WebdavConflictStrategy;
+  lastSyncSignature?: string;
+}
+
+export interface ObjectStorageConfig {
+  enabled: boolean;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicBaseUrl: string;
+  objectPrefix: string;
 }
 
 export interface AppConfig {
@@ -45,6 +61,7 @@ export interface AppConfig {
   backgroundPositionX?: number;
   backgroundPositionY?: number;
   webdav: WebdavConfig;
+  objectStorage: ObjectStorageConfig;
 }
 
 export interface SyncStatus {
@@ -52,4 +69,17 @@ export interface SyncStatus {
   message: string;
   syncedAt?: string;
   remotePath: string;
+}
+
+export interface SyncOverview {
+  ok: boolean;
+  remoteExists: boolean;
+  inSync: boolean;
+  localChanged: boolean;
+  remoteChanged: boolean;
+  recommendedAction: WebdavSyncAction;
+  localSignature: string;
+  remoteSignature?: string;
+  remotePath: string;
+  checkedAt: string;
 }

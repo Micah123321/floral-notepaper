@@ -5,6 +5,18 @@ updated_at: 2026-05-30 16:28:01
 
 # CHANGELOG
 
+## [1.1.0] - 2026-06-02
+
+### 新增
+
+- **[WebDAV 同步设置]**: 增加启动自动同步、同步状态检查、冲突策略和本机同步基线，设置区禁用后仍保留配置入口 — by yinjianm
+  - 方案: [202606021603_webdav-sync-settings](archive/2026-06/202606021603_webdav-sync-settings/)
+  - 决策: webdav-sync-settings#D001(使用快照签名识别本机与远端差异), webdav-sync-settings#D002(默认询问避免静默覆盖)
+
+- **[对象存储粘贴上传]**: 增加 R2/S3 兼容对象存储配置、SigV4 PUT 上传命令和编辑区粘贴图片/文件后插入公开 URL Markdown — by yinjianm
+  - 方案: [202606021608_object-storage-paste-upload](archive/2026-06/202606021608_object-storage-paste-upload/)
+  - 决策: object-storage-paste-upload#D001(使用公开 URL 插入 Markdown), object-storage-paste-upload#D002(手写最小 SigV4 PUT 而不引入 AWS SDK)
+
 ## [1.0.4] - 2026-05-30
 
 ### 新增

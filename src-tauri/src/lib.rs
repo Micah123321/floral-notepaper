@@ -7,7 +7,8 @@ use services::{
     notes::{
         default_store, AppConfig, AppError, Note, NoteAttachment, NoteMetadata, SaveNoteRequest,
     },
-    sync::{SyncService, SyncStatus},
+    object_storage::{ObjectStorageService, ObjectUpload},
+    sync::{SyncOverview, SyncService, SyncStatus},
 };
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Emitter};
@@ -79,6 +80,18 @@ fn notes_add_attachment(note_id: String, source_path: String) -> Result<NoteAtta
 #[tauri::command]
 fn notes_delete_attachment(note_id: String, attachment_id: String) -> Result<(), AppError> {
     default_store()?.delete_attachment(&note_id, &attachment_id)
+}
+
+#[tauri::command]
+async fn notes_upload_object_attachment(
+    note_id: String,
+    file_name: String,
+    content_type: String,
+    data: Vec<u8>,
+) -> Result<ObjectUpload, AppError> {
+    ObjectStorageService::new(default_store()?)
+        .upload_note_object(&note_id, &file_name, &content_type, data)
+        .await
 }
 
 #[tauri::command]
@@ -232,6 +245,11 @@ async fn sync_webdav_test() -> Result<SyncStatus, AppError> {
 }
 
 #[tauri::command]
+async fn sync_webdav_status() -> Result<SyncOverview, AppError> {
+    SyncService::new(default_store()?).check_status().await
+}
+
+#[tauri::command]
 async fn sync_webdav_upload() -> Result<SyncStatus, AppError> {
     SyncService::new(default_store()?).upload_snapshot().await
 }
@@ -326,6 +344,7 @@ pub fn run() {
             notes_list_attachments,
             notes_add_attachment,
             notes_delete_attachment,
+            notes_upload_object_attachment,
             notes_move_category,
             read_external_file,
             save_external_file,
@@ -338,6 +357,7 @@ pub fn run() {
             copy_background_image,
             config_save,
             sync_webdav_test,
+            sync_webdav_status,
             sync_webdav_upload,
             sync_webdav_download,
             global_shortcut_check,

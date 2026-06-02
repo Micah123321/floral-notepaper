@@ -44,6 +44,15 @@ export interface NoteAttachment {
   updatedAt: string;
 }
 
+export interface ObjectUpload {
+  fileName: string;
+  objectKey: string;
+  url: string;
+  mimeGroup: "image" | "file";
+  size: number;
+  uploadedAt: string;
+}
+
 export interface ExternalFile {
   id: string;
   title: string;

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   checkGlobalShortcut,
   chooseNotesDirectory,
+  checkWebdavStatus,
   downloadWebdavSnapshot,
   getConfig,
   normalizeViewMode,
@@ -59,6 +60,18 @@ describe("settings api", () => {
         username: "",
         password: "",
         remotePath: "floral-notepaper",
+        syncOnStartup: false,
+        conflictStrategy: "ask",
+      },
+      objectStorage: {
+        enabled: false,
+        endpoint: "",
+        region: "auto",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        publicBaseUrl: "",
+        objectPrefix: "floral-notepaper",
       },
     };
     mockedInvoke.mockResolvedValue(config);
@@ -97,6 +110,18 @@ describe("settings api", () => {
         username: "user",
         password: "pass",
         remotePath: "floral-notepaper",
+        syncOnStartup: true,
+        conflictStrategy: "preferRemote",
+      },
+      objectStorage: {
+        enabled: true,
+        endpoint: "https://example.r2.cloudflarestorage.com",
+        region: "auto",
+        bucket: "floral",
+        accessKeyId: "access",
+        secretAccessKey: "secret",
+        publicBaseUrl: "https://cdn.example.com/files",
+        objectPrefix: "floral-notepaper",
       },
     };
     mockedInvoke.mockResolvedValue(config);
@@ -133,6 +158,26 @@ describe("settings api", () => {
     await expect(testWebdavSync()).resolves.toBe(result);
 
     expect(invoke).toHaveBeenCalledWith("sync_webdav_test");
+  });
+
+  test("checks WebDAV sync status through Rust", async () => {
+    const result = {
+      ok: true,
+      remoteExists: true,
+      inSync: false,
+      localChanged: true,
+      remoteChanged: false,
+      recommendedAction: "upload",
+      localSignature: "local",
+      remoteSignature: "remote",
+      remotePath: "https://example.com/dav/floral-notepaper/floral-notepaper-sync.json",
+      checkedAt: "2026-06-02T08:00:00Z",
+    };
+    mockedInvoke.mockResolvedValue(result);
+
+    await expect(checkWebdavStatus()).resolves.toBe(result);
+
+    expect(invoke).toHaveBeenCalledWith("sync_webdav_status");
   });
 
   test("uploads WebDAV snapshot through Rust", async () => {

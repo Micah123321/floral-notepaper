@@ -1,6 +1,6 @@
 ---
 module: build-and-tests
-updated_at: 2026-05-30 18:39:00
+updated_at: 2026-06-02 16:35:00
 ---
 
 # 构建与测试
@@ -57,13 +57,14 @@ updated_at: 2026-05-30 18:39:00
 - CSS 和界面样式回归：`tests/AppCss.test.ts`
 - 本地化资源与白名单：`src/locales/*.test.ts`
 - 笔记工具函数：`src/features/notes/noteUtils.test.ts`
-- 笔记附件工具和 API：`src/features/notes/attachments.test.ts`、`src/features/notes/api.test.ts`
+- 笔记附件、对象存储粘贴上传工具和 API：`src/features/notes/attachments.test.ts`、`src/features/notes/pasteUpload.test.ts`、`src/features/notes/api.test.ts`
 - Markdown 附件引用解析：`src/features/markdown/MarkdownPreview.test.ts`
 - 导入导出文件名处理：`src/features/importExport/api.test.ts`
 - 设置、快捷键、磁贴颜色：`src/features/settings/*.test.ts`
 - 窗口路由、窗口事件、surface 模式和操作：`src/features/windows/*.test.ts`
 - Rust 存储、配置、导入导出、桌面行为：`src-tauri/src/services/notes.rs` 与 `src-tauri/src/desktop.rs` 内部测试
 - WebDAV 快照构建、配置清理、恢复合并和附件恢复：`src-tauri/src/services/sync.rs` 内部测试
+- 对象存储配置校验、对象 key/公开 URL 生成和 SigV4 header：`src-tauri/src/services/object_storage.rs` 内部测试
 
 ## 验证策略
 
@@ -84,3 +85,4 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - Windows PowerShell 直接调用 Rust 编译时需要先加载 `VsDevCmd.bat` 或使用包含 MSVC `link.exe` 的开发环境。
 - 未加载 MSVC 开发环境时，可临时设置 `RUSTFLAGS="-C linker=rust-lld"` 运行 `cargo test --manifest-path src-tauri/Cargo.toml --no-run` 做编译检查。
 - 当前附件实现验证通过：`npm run lint`、`npm run test`、`npm run build`、`cargo test --manifest-path src-tauri/Cargo.toml`、`npx tauri build --debug`。
+- 当前对象存储粘贴上传定向验证通过：`npm run test -- src/features/notes/api.test.ts src/features/notes/attachments.test.ts src/features/notes/pasteUpload.test.ts src/features/settings/api.test.ts src/locales/resources.test.ts src/locales/locale-whitelist.test.ts`、`npm run build`、`RUSTFLAGS="-C linker=rust-lld" cargo test --manifest-path src-tauri/Cargo.toml object_storage`、`RUSTFLAGS="-C linker=rust-lld" cargo test --manifest-path src-tauri/Cargo.toml sync`、`RUSTFLAGS="-C linker=rust-lld" cargo test --manifest-path src-tauri/Cargo.toml --no-run`。

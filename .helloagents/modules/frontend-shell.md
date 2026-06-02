@@ -1,6 +1,6 @@
 ---
 module: frontend-shell
-updated_at: 2026-06-02 16:06:00
+updated_at: 2026-06-02 16:35:00
 ---
 
 # 前端应用壳
@@ -14,6 +14,7 @@ updated_at: 2026-06-02 16:06:00
 - `src/components/MainWindow.tsx`
 - `src/components/NotePad.tsx`
 - `src/components/AttachmentStrip.tsx`
+- `src/components/ObjectStorageSection.tsx`
 - `src/components/ReminderInput.tsx`
 - `src/components/Tile.tsx`
 - `src/components/TileShowcase.tsx`
@@ -32,6 +33,8 @@ updated_at: 2026-06-02 16:06:00
 - 主窗口承担笔记列表、分类、搜索、编辑、预览、外部文件、设置面板和磁贴钉屏入口。
 - 主窗口内部笔记标题输入会自动识别口语化时间并写入 reminder；标题区保留提醒纸签，支持预设按钮、识别摘要和清除；外部文件模式不显示或保存本地提醒。
 - 主窗口内部笔记标题区显示横向附件条，支持添加附件、点击附件重新插入 Markdown、删除附件和大小展示；外部文件模式禁用附件。
+- 主窗口编辑区支持粘贴剪贴板图片和文件：内部笔记会上传到对象存储并插入 Markdown；外部文件模式不拦截该粘贴流程。
+- 未配置对象存储时，粘贴文件会打开设置面板并显示 R2/S3 配置提示；上传过程中标题状态行显示上传状态。
 - 笔记列表中有 reminder 的条目显示紧凑提醒徽标，摘要由 `formatReminderSummary()` 生成。
 - 快捷便签窗口支持新建/打开笔记、自动保存、转换为磁贴、窗口拖拽和边角缩放。
 - 快捷便签窗口保存已有笔记时会保留原 reminder，避免小窗编辑覆盖提醒字段。
@@ -40,7 +43,8 @@ updated_at: 2026-06-02 16:06:00
 ## 依赖关系
 
 - 依赖 `src/features/notes/api.ts` 读写笔记和分类。
-- 依赖 `src/features/notes/attachments.ts` 选择附件、生成 Markdown 片段和格式化附件大小。
+- 依赖 `src/features/notes/attachments.ts` 选择附件、生成本地附件/对象存储 Markdown 片段、检查对象存储配置和格式化附件大小。
+- 依赖 `src/features/notes/pasteUpload.ts` 读取粘贴文件字节并归一文件名、content type。
 - 依赖 `src/features/settings/api.ts` 读写配置。
 - 依赖 `src/features/windows/api.ts` 打开便签、磁贴和编辑器窗口。
 - 依赖 `src/features/windows/controls.ts` 控制当前窗口。

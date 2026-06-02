@@ -10,7 +10,9 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use super::notes::{AppConfig, AppError, MetadataFile, NoteStore, WebdavConfig};
+use super::notes::{
+    AppConfig, AppError, MetadataFile, NoteStore, ObjectStorageConfig, WebdavConfig,
+};
 
 const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 const SNAPSHOT_FILE_NAME: &str = "floral-notepaper-sync.json";
@@ -24,6 +26,22 @@ pub struct SyncStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced_at: Option<String>,
     pub remote_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncOverview {
+    pub ok: bool,
+    pub remote_exists: bool,
+    pub in_sync: bool,
+    pub local_changed: bool,
+    pub remote_changed: bool,
+    pub recommended_action: String,
+    pub local_signature: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_signature: Option<String>,
+    pub remote_path: String,
+    pub checked_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -75,10 +93,51 @@ impl SyncService {
         Ok(remote.status("WebDAV connection is available"))
     }
 
+    pub async fn check_status(&self) -> Result<SyncOverview, AppError> {
+        let config = self.store.load_config()?;
+        let remote = RemoteTarget::from_config(&config.webdav)?;
+        let local_snapshot = self.build_snapshot()?;
+        let local_signature = snapshot_signature(&local_snapshot)?;
+        let remote_snapshot = self
+            .fetch_remote_snapshot(&remote, "webdavStatusFailed")
+            .await?;
+        let remote_signature = remote_snapshot
+            .as_ref()
+            .map(snapshot_signature)
+            .transpose()?;
+        let remote_exists = remote_signature.is_some();
+        let in_sync = remote_signature.as_deref() == Some(local_signature.as_str());
+        let (local_changed, remote_changed) = sync_change_flags(
+            &local_signature,
+            remote_signature.as_deref(),
+            config.webdav.last_sync_signature.as_deref(),
+        );
+
+        Ok(SyncOverview {
+            ok: true,
+            remote_exists,
+            in_sync,
+            local_changed,
+            remote_changed,
+            recommended_action: recommended_sync_action(
+                remote_exists,
+                in_sync,
+                local_changed,
+                remote_changed,
+            )
+            .to_string(),
+            local_signature,
+            remote_signature,
+            remote_path: remote.display_path.clone(),
+            checked_at: Utc::now().to_rfc3339(),
+        })
+    }
+
     pub async fn upload_snapshot(&self) -> Result<SyncStatus, AppError> {
         let config = self.store.load_config()?;
         let remote = RemoteTarget::from_config(&config.webdav)?;
         let snapshot = self.build_snapshot()?;
+        let signature = snapshot_signature(&snapshot)?;
         let body = serde_json::to_vec_pretty(&snapshot)?;
 
         self.ensure_remote_collection(&remote).await?;
@@ -90,6 +149,7 @@ impl SyncService {
             .await
             .map_err(map_webdav_transport_error)?;
         ensure_webdav_success(response.status(), "webdavUploadFailed")?;
+        self.save_sync_signature(signature)?;
 
         Ok(remote.status("Snapshot uploaded"))
     }
@@ -97,25 +157,18 @@ impl SyncService {
     pub async fn download_snapshot(&self) -> Result<SyncStatus, AppError> {
         let config = self.store.load_config()?;
         let remote = RemoteTarget::from_config(&config.webdav)?;
-        let response = self
-            .authorized_request(Method::GET, remote.file_url.clone(), &remote.config)
-            .send()
-            .await
-            .map_err(map_webdav_transport_error)?;
-
-        if response.status() == StatusCode::NOT_FOUND {
+        let Some(snapshot) = self
+            .fetch_remote_snapshot(&remote, "webdavDownloadFailed")
+            .await?
+        else {
             return Err(AppError::new(
                 "webdavSnapshotMissing",
                 "remote WebDAV snapshot does not exist",
             ));
-        }
-        ensure_webdav_success(response.status(), "webdavDownloadFailed")?;
-
-        let snapshot = response
-            .json::<SyncSnapshot>()
-            .await
-            .map_err(|error| AppError::new("webdavSnapshotInvalid", error.to_string()))?;
+        };
+        let signature = snapshot_signature(&snapshot)?;
         self.restore_snapshot(snapshot)?;
+        self.save_sync_signature(signature)?;
 
         Ok(remote.status("Snapshot downloaded"))
     }
@@ -227,9 +280,15 @@ impl SyncService {
         self.restore_snapshot(snapshot)
     }
 
+    #[cfg(test)]
+    fn save_sync_signature_for_test(&self, signature: String) -> Result<(), AppError> {
+        self.save_sync_signature(signature)
+    }
+
     fn prepare_restored_config(&self, config: &mut AppConfig, local_config: &AppConfig) {
         config.notes_dir = local_config.notes_dir.clone();
         config.webdav = local_config.webdav.clone();
+        config.object_storage = local_config.object_storage.clone();
         if config.background_image_path.is_empty() {
             return;
         }
@@ -251,6 +310,7 @@ impl SyncService {
     fn prepare_snapshot_config(config: &mut AppConfig) {
         config.notes_dir = "notes".to_string();
         config.webdav = WebdavConfig::default();
+        config.object_storage = ObjectStorageConfig::default();
         if let Some(file_name) = Path::new(&config.background_image_path)
             .file_name()
             .and_then(|value| value.to_str())
@@ -258,6 +318,36 @@ impl SyncService {
         {
             config.background_image_path = file_name.to_string();
         }
+    }
+
+    async fn fetch_remote_snapshot(
+        &self,
+        remote: &RemoteTarget,
+        failure_code: &str,
+    ) -> Result<Option<SyncSnapshot>, AppError> {
+        let response = self
+            .authorized_request(Method::GET, remote.file_url.clone(), &remote.config)
+            .send()
+            .await
+            .map_err(map_webdav_transport_error)?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        ensure_webdav_success(response.status(), failure_code)?;
+
+        response
+            .json::<SyncSnapshot>()
+            .await
+            .map(Some)
+            .map_err(|error| AppError::new("webdavSnapshotInvalid", error.to_string()))
+    }
+
+    fn save_sync_signature(&self, signature: String) -> Result<(), AppError> {
+        let mut config = self.store.load_config()?;
+        config.webdav.last_sync_signature = Some(signature);
+        self.store.save_config(config)?;
+        Ok(())
     }
 }
 
@@ -406,6 +496,62 @@ fn ensure_webdav_success(status: StatusCode, code: &str) -> Result<(), AppError>
         code,
         format!("WebDAV request failed with status {status}"),
     ))
+}
+
+fn snapshot_signature(snapshot: &SyncSnapshot) -> Result<String, AppError> {
+    let mut value = serde_json::to_value(snapshot)?;
+    if let Some(object) = value.as_object_mut() {
+        object.remove("generatedAt");
+    }
+    let canonical = serde_json::to_vec(&value)?;
+    Ok(format!("{:016x}", stable_hash(&canonical)))
+}
+
+fn stable_hash(bytes: &[u8]) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+    let mut hash = FNV_OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
+fn sync_change_flags(
+    local_signature: &str,
+    remote_signature: Option<&str>,
+    last_sync_signature: Option<&str>,
+) -> (bool, bool) {
+    let local_changed = last_sync_signature
+        .map(|signature| signature != local_signature)
+        .unwrap_or(true);
+    let remote_changed = match (remote_signature, last_sync_signature) {
+        (Some(remote), Some(signature)) => remote != signature,
+        (Some(_), None) => true,
+        (None, _) => false,
+    };
+    (local_changed, remote_changed)
+}
+
+fn recommended_sync_action(
+    remote_exists: bool,
+    in_sync: bool,
+    local_changed: bool,
+    remote_changed: bool,
+) -> &'static str {
+    if in_sync {
+        return "none";
+    }
+    if !remote_exists {
+        return "upload";
+    }
+    match (local_changed, remote_changed) {
+        (false, true) => "download",
+        (true, false) => "upload",
+        (false, false) => "ask",
+        (true, true) => "ask",
+    }
 }
 
 fn collect_utf8_files(root: &Path) -> Result<Vec<SnapshotFile>, AppError> {
@@ -654,6 +800,12 @@ mod tests {
         config.webdav.endpoint = "https://example.com/dav".into();
         config.webdav.username = "secret-user".into();
         config.webdav.password = "secret-pass".into();
+        config.object_storage.enabled = true;
+        config.object_storage.endpoint = "https://r2.example.com".into();
+        config.object_storage.bucket = "private-bucket".into();
+        config.object_storage.access_key_id = "secret-access".into();
+        config.object_storage.secret_access_key = "secret-key".into();
+        config.object_storage.public_base_url = "https://cdn.example.com".into();
         store.save_config(config).expect("save config");
         let attachment_source = store.base_dir().join("source.png");
         fs::write(&attachment_source, [4_u8, 5, 6]).expect("write attachment source");
@@ -688,6 +840,10 @@ mod tests {
         assert_eq!(snapshot.config.notes_dir, "notes");
         assert_eq!(snapshot.config.background_image_path, "paper.bin");
         assert_eq!(snapshot.config.webdav, WebdavConfig::default());
+        assert_eq!(
+            snapshot.config.object_storage,
+            ObjectStorageConfig::default()
+        );
     }
 
     #[test]
@@ -705,6 +861,12 @@ mod tests {
         source_config.webdav.endpoint = "https://remote.example/dav".into();
         source_config.webdav.username = "remote-user".into();
         source_config.webdav.password = "remote-pass".into();
+        source_config.object_storage.enabled = true;
+        source_config.object_storage.endpoint = "https://remote-r2.example.com".into();
+        source_config.object_storage.bucket = "remote-bucket".into();
+        source_config.object_storage.access_key_id = "remote-access".into();
+        source_config.object_storage.secret_access_key = "remote-secret".into();
+        source_config.object_storage.public_base_url = "https://remote-cdn.example.com".into();
         source_store
             .save_config(source_config)
             .expect("save source config");
@@ -730,6 +892,12 @@ mod tests {
         target_config.webdav.endpoint = "https://local.example/dav".into();
         target_config.webdav.username = "local-user".into();
         target_config.webdav.password = "local-pass".into();
+        target_config.object_storage.enabled = true;
+        target_config.object_storage.endpoint = "https://local-r2.example.com".into();
+        target_config.object_storage.bucket = "local-bucket".into();
+        target_config.object_storage.access_key_id = "local-access".into();
+        target_config.object_storage.secret_access_key = "local-secret".into();
+        target_config.object_storage.public_base_url = "https://local-cdn.example.com".into();
         let target_config = target_store
             .save_config(target_config.clone())
             .expect("save target config");
@@ -741,6 +909,15 @@ mod tests {
         let restored_config = target_store.load_config().expect("reload config");
         assert_eq!(restored_config.notes_dir, target_config.notes_dir);
         assert_eq!(restored_config.webdav.endpoint, "https://local.example/dav");
+        assert_eq!(
+            restored_config.object_storage.endpoint,
+            "https://local-r2.example.com"
+        );
+        assert_eq!(restored_config.object_storage.bucket, "local-bucket");
+        assert_eq!(
+            restored_config.object_storage.secret_access_key,
+            "local-secret"
+        );
         assert_eq!(
             restored_config.background_image_path,
             target_store
@@ -796,6 +973,9 @@ mod tests {
             username: "user".into(),
             password: "pass".into(),
             remote_path: "floral".into(),
+            sync_on_startup: false,
+            conflict_strategy: "ask".into(),
+            last_sync_signature: None,
         };
 
         let error = RemoteTarget::from_config(&config).expect_err("reject config");
@@ -843,6 +1023,81 @@ mod tests {
         assert_eq!(
             normalize_remote_path(" /team\\floral/./notes/../sync "),
             "team/floral/notes/sync"
+        );
+    }
+
+    #[test]
+    fn snapshot_signature_ignores_generated_at() {
+        let store = NoteStore::new(test_root("signature"));
+        store
+            .create_note(SaveNoteRequest {
+                title: "签名".into(),
+                content: "content".into(),
+                category: String::new(),
+                reminder: None,
+            })
+            .expect("create note");
+        let service = SyncService::new(store);
+        let mut first = service.build_snapshot_for_test().expect("first snapshot");
+        let mut second = first.clone();
+        first.generated_at = "2026-06-02T08:00:00Z".into();
+        second.generated_at = "2026-06-02T09:00:00Z".into();
+
+        assert_eq!(
+            snapshot_signature(&first).expect("first signature"),
+            snapshot_signature(&second).expect("second signature")
+        );
+    }
+
+    #[test]
+    fn detects_sync_change_flags_against_last_signature() {
+        assert_eq!(
+            sync_change_flags("same", Some("same"), Some("same")),
+            (false, false)
+        );
+        assert_eq!(
+            sync_change_flags("local", Some("base"), Some("base")),
+            (true, false)
+        );
+        assert_eq!(
+            sync_change_flags("base", Some("remote"), Some("base")),
+            (false, true)
+        );
+        assert_eq!(
+            sync_change_flags("local", Some("remote"), Some("base")),
+            (true, true)
+        );
+        assert_eq!(sync_change_flags("local", None, None), (true, false));
+    }
+
+    #[test]
+    fn recommends_sync_actions_from_change_flags() {
+        assert_eq!(recommended_sync_action(true, true, false, false), "none");
+        assert_eq!(recommended_sync_action(false, false, true, false), "upload");
+        assert_eq!(recommended_sync_action(true, false, true, false), "upload");
+        assert_eq!(
+            recommended_sync_action(true, false, false, true),
+            "download"
+        );
+        assert_eq!(recommended_sync_action(true, false, true, true), "ask");
+    }
+
+    #[test]
+    fn persists_sync_signature_in_local_config() {
+        let store = NoteStore::new(test_root("sync-signature"));
+        let service = SyncService::new(store.clone());
+
+        service
+            .save_sync_signature_for_test("sig-1".into())
+            .expect("save signature");
+
+        assert_eq!(
+            store
+                .load_config()
+                .expect("load config")
+                .webdav
+                .last_sync_signature,
+            Some("sig-1".into())
         );
     }
 }

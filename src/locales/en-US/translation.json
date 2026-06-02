@@ -37,6 +37,11 @@
     "duplicateShortcut": "Show/Hide shortcut cannot be the same as Quick Note shortcut",
     "attachmentNotFound": "Attachment not found",
     "invalidAttachmentSource": "Attachment source file is missing or unreadable",
+    "objectStorageConfigIncomplete": "Enter the R2/S3 storage settings",
+    "objectStorageConfigInvalid": "Invalid R2/S3 storage settings",
+    "objectStorageNetwork": "Could not connect to R2/S3 storage",
+    "objectStorageUploadEmpty": "The pasted file is empty",
+    "objectStorageUploadFailed": "Could not upload the file",
     "noPool": "Notepad window pool not yet initialized",
     "noteNotFound": "Note not found",
     "unsupportedFile": "Only .md files are supported",
@@ -49,7 +54,8 @@
     "webdavNetwork": "Could not connect to WebDAV",
     "webdavSnapshotInvalid": "Remote snapshot is invalid",
     "webdavSnapshotMissing": "Remote snapshot does not exist",
-    "webdavUploadFailed": "Could not upload the snapshot"
+    "webdavUploadFailed": "Could not upload the snapshot",
+    "webdavStatusFailed": "Could not check sync status"
   },
   "markdown": {
     "copied": "Copied",
@@ -88,6 +94,10 @@
     },
     "externalFile": {
       "label": "External File · {{path}}"
+    },
+    "objectStorage": {
+      "configureHint": "Set up R2/S3 storage first",
+      "uploading": "Uploading"
     },
     "externalFiles": {
       "remove": "Remove from list",
@@ -227,6 +237,16 @@
       "zhHK": "繁體中文"
     },
     "notesDir": "Notes directory",
+    "objectStorage": {
+      "accessKeyId": "Access Key",
+      "bucket": "Bucket",
+      "enabled": "R2/S3 Storage",
+      "endpoint": "URL",
+      "objectPrefix": "Folder",
+      "publicBaseUrl": "Public URL",
+      "region": "Region",
+      "secretAccessKey": "Secret Key"
+    },
     "openAtCursor": "Open near cursor with shortcut",
     "quickNoteShortcut": "Quick Note shortcut",
     "rememberSurfaceSize": "Remember surface size",
@@ -268,7 +288,27 @@
       "upload": "Upload",
       "uploaded": "Uploaded",
       "uploading": "Uploading",
-      "username": "User"
+      "username": "User",
+      "check": "Check",
+      "checking": "Checking",
+      "sync": "Sync",
+      "synced": "Synced",
+      "startup": "Sync on open",
+      "conflict": "When different",
+      "cancelled": "Cancelled",
+      "conflictPrompt": "Local and remote data differ. Enter 1 to upload local, 2 to download remote, or anything else to cancel.",
+      "strategy": {
+        "ask": "Ask",
+        "local": "Local first",
+        "remote": "Remote first"
+      },
+      "status": {
+        "synced": "Local and remote match",
+        "remoteMissing": "No remote snapshot",
+        "localNewer": "Local has changes",
+        "remoteNewer": "Remote has changes",
+        "conflict": "Local and remote differ"
+      }
     },
     "theme": {
       "dark": "Dark",

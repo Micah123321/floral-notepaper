@@ -74,7 +74,7 @@ source: code_scan
 
 `notes_dir` 保存时会通过 `ensure_notes_suffix()` 规范化为以 `notes` 结尾的路径。笔记目录存在安全限制，禁止使用磁盘根目录和 Windows 系统目录。
 
-WebDAV 同步采用单文件快照 `{remotePath}/floral-notepaper-sync.json`，覆盖可跨设备共享的设置、`metadata.json`、`notes/`、`backgrounds/` 和 `attachments/`。上传快照会清空 WebDAV 凭据、本机 `notesDir`，并把背景图路径降级为文件名；下载恢复会保留当前设备的 `notesDir` 与 WebDAV 凭据。
+WebDAV 同步采用单文件快照 `{remotePath}/floral-notepaper-sync.json`，覆盖可跨设备共享的设置、`metadata.json`、`notes/`、`backgrounds/` 和 `attachments/`。上传快照会清空 WebDAV 凭据、本机 `notesDir` 和本机同步基线，并把背景图路径降级为文件名；下载恢复会保留当前设备的 `notesDir`、WebDAV 凭据和同步策略。启动自动同步默认关闭，开启后主窗口启动时先检查远端状态，再按冲突策略执行上传、下载或询问。
 
 ## 开发约定
 

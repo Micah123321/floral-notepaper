@@ -1,18 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { ClipboardEvent, MouseEvent } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { emit, listen } from "@tauri-apps/api/event";
 import { exportMarkdownNote, importMarkdownNote } from "../features/importExport/api";
 import { MarkdownPreview } from "../features/markdown/MarkdownPreview";
-import { attachmentMarkdown, chooseAttachmentFile } from "../features/notes/attachments";
 import {
+  attachmentMarkdown,
+  chooseAttachmentFile,
+  isObjectStorageConfigured,
+  objectUploadMarkdown,
+} from "../features/notes/attachments";
+import {
+  clipboardFiles,
+  normalizedPasteContentType,
+  normalizedPasteFileName,
+  readFileBytes,
+} from "../features/notes/pasteUpload";
+import {
+  checkWebdavStatus,
   chooseNotesDirectory,
+  downloadWebdavSnapshot,
   getConfig,
   normalizeViewMode,
   saveConfig,
+  uploadWebdavSnapshot,
 } from "../features/settings/api";
 import type { AppConfig, ViewMode } from "../features/settings/types";
+import { normalizeWebdavConfig, resolveWebdavSyncAction } from "../features/settings/webdavSync";
 import { normalizeTileColor } from "../features/settings/tileColor";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { ReminderBadge, ReminderInput } from "./ReminderInput";
@@ -36,6 +51,7 @@ import {
   readExternalFile,
   renameCategory,
   saveExternalFile,
+  uploadObjectAttachment,
   updateNote,
 } from "../features/notes/api";
 import type {
@@ -75,6 +91,47 @@ import {
 } from "../features/windows/tileWindowEvents";
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
+
+async function runStartupWebdavSync(config: AppConfig, translate: TFunction): Promise<void> {
+  const webdav = normalizeWebdavConfig(config.webdav);
+  if (!webdav.enabled || !webdav.syncOnStartup) return;
+
+  const overview = await checkWebdavStatus();
+  const action = resolveWebdavSyncAction(overview, webdav.conflictStrategy);
+
+  if (action === "none") return;
+
+  if (action === "upload") {
+    await uploadWebdavSnapshot();
+    return;
+  }
+
+  if (action === "download") {
+    if (confirmStartupDownload(translate)) {
+      await downloadWebdavSnapshot();
+    }
+    return;
+  }
+
+  const choice = window.prompt(
+    translate("settings.sync.conflictPrompt", {
+      defaultValue: "本机和远端不同步。输入 1 上传本机，输入 2 下载远端，其他输入取消。",
+    }),
+  );
+  if (choice === "1") {
+    await uploadWebdavSnapshot();
+  } else if (choice === "2" && confirmStartupDownload(translate)) {
+    await downloadWebdavSnapshot();
+  }
+}
+
+function confirmStartupDownload(translate: TFunction): boolean {
+  return window.confirm(
+    translate("settings.sync.confirmDownload", {
+      defaultValue: "下载远端快照会覆盖本机笔记、附件、背景图和应用设置，继续？",
+    }),
+  );
+}
 
 interface NoteMenuState {
   x: number;
@@ -304,6 +361,7 @@ export function MainWindow({
   const [reminder, setReminder] = useState<Reminder | null>(null);
   const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [pasteUploading, setPasteUploading] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -357,6 +415,8 @@ export function MainWindow({
     () => externalFiles.find((f) => f.id === selectedId) ?? null,
     [externalFiles, selectedId],
   );
+  const selectedExternalFileRef = useRef(selectedExternalFile);
+  selectedExternalFileRef.current = selectedExternalFile;
 
   const isExternal = selectedExternalFile !== null;
   const attachmentsDisabled = !selectedId || isExternal;
@@ -570,17 +630,27 @@ export function MainWindow({
     async function bootstrap() {
       setIsLoading(true);
       try {
-        const [loadedConfig, loadedNotes, loadedCategories] = await Promise.all([
+        const loadedConfig = await getConfig();
+        let startupSyncError: string | null = null;
+        try {
+          await runStartupWebdavSync(loadedConfig, t);
+        } catch (error) {
+          startupSyncError = getErrorMessage(error);
+        }
+        const [syncedConfig, loadedNotes, loadedCategories] = await Promise.all([
           getConfig(),
           listNotes(),
           listCategories(),
         ]);
         if (cancelled) return;
-        setSettingsConfig(loadedConfig);
-        setSavedNotesDir(loadedConfig.notesDir);
-        setViewMode(normalizeViewMode(loadedConfig.defaultViewMode));
+        setSettingsConfig(syncedConfig);
+        setSavedNotesDir(syncedConfig.notesDir);
+        setViewMode(normalizeViewMode(syncedConfig.defaultViewMode));
         setNotes(loadedNotes);
         setCategories(loadedCategories);
+        if (startupSyncError) {
+          setErrorMessage(startupSyncError);
+        }
         setCollapsedCategories(new Set(loadedCategories));
         if (loadedNotes[0]) {
           const [note, loadedAttachments] = await Promise.all([
@@ -612,7 +682,7 @@ export function MainWindow({
     return () => {
       cancelled = true;
     };
-  }, [applyNote, clearCurrentNote]);
+  }, [applyNote, clearCurrentNote, t]);
 
   useEffect(() => {
     const unlisten = listen("notes-changed", () => {
@@ -1285,6 +1355,62 @@ export function MainWindow({
       setAttachmentsLoading(false);
     }
   }, [handleInsertAttachment, isExternal, selectedId]);
+
+  const handlePasteFiles = useCallback(
+    async (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = clipboardFiles(event.nativeEvent);
+      if (files.length === 0 || !selectedId || isExternal) {
+        return;
+      }
+      const targetNoteId = selectedId;
+
+      event.preventDefault();
+      if (!isObjectStorageConfigured(settingsConfig?.objectStorage)) {
+        setSettingsOpen(true);
+        setErrorMessage(
+          t("main.objectStorage.configureHint", {
+            defaultValue: "请先设置 R2/S3 存储",
+          }),
+        );
+        return;
+      }
+
+      setErrorMessage(null);
+      setPasteUploading(true);
+      try {
+        if (settingsConfig) {
+          await saveSettingsConfig(settingsConfig);
+        }
+        const markdown: string[] = [];
+        for (const [index, file] of files.entries()) {
+          const upload = await uploadObjectAttachment(
+            targetNoteId,
+            normalizedPasteFileName(file, index),
+            normalizedPasteContentType(file),
+            await readFileBytes(file),
+          );
+          markdown.push(objectUploadMarkdown(upload));
+        }
+        if (selectedIdRef.current !== targetNoteId || selectedExternalFileRef.current) {
+          return;
+        }
+        insertTextAtCursor(markdown.join("\n\n"));
+      } catch (error) {
+        setErrorMessage(getErrorMessage(error, t));
+      } finally {
+        setPasteUploading(false);
+      }
+    },
+    [
+      insertTextAtCursor,
+      isExternal,
+      saveSettingsConfig,
+      selectedId,
+      settingsConfig,
+      settingsConfig?.objectStorage,
+      t,
+    ],
+  );
 
   const handleDeleteAttachment = useCallback(
     async (attachmentId: string) => {
@@ -2313,6 +2439,14 @@ export function MainWindow({
                 >
                   {saveStateLabel[saveState]}
                 </span>
+                {pasteUploading && (
+                  <>
+                    <span className="text-[10px] text-ink-ghost/40">·</span>
+                    <span className="text-[10px] text-bamboo/70 font-mono tabular-nums">
+                      {t("main.objectStorage.uploading", { defaultValue: "上传中" })}
+                    </span>
+                  </>
+                )}
                 {!isExternal && reminder && (
                   <>
                     <span className="text-[10px] text-ink-ghost/40">·</span>
@@ -2392,6 +2526,7 @@ export function MainWindow({
                             setContent(event.target.value);
                             markDirty();
                           }}
+                          onPaste={(event) => void handlePasteFiles(event)}
                           className="w-full h-full leading-[1.9] text-ink-soft font-body placeholder:text-ink-ghost/40"
                           style={{
                             fontSize: `${settingsConfig?.fontSize ?? 14}px`,

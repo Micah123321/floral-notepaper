@@ -20,6 +20,7 @@ import { DEFAULT_TILE_COLOR, normalizeTileColor } from "../features/settings/til
 import { applyTheme, watchSystemTheme } from "../features/settings/theme";
 import { SUPPORTED_LOCALES } from "../locales/locale-whitelist";
 import { SlidingButtonGroup } from "./SlidingButtonGroup";
+import { ObjectStorageSection } from "./ObjectStorageSection";
 import { WebdavSyncSection } from "./WebdavSyncSection";
 
 const HARMONY_FONT_LICENSE_URL = new URL("../assets/fonts/LICENSE_Fonts", import.meta.url).href;
@@ -442,6 +443,8 @@ export function SettingsPanel({
             onChange={(value) => setConfigValue("backgroundBlur", value)}
           />
         </section>
+
+        <ObjectStorageSection config={config} onChange={onChange} />
 
         <WebdavSyncSection config={config} onChange={onChange} onSave={onSave} />
 

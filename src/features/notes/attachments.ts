@@ -1,5 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import type { NoteAttachment } from "./types";
+import type { ObjectStorageConfig } from "../settings/types";
+import type { NoteAttachment, ObjectUpload } from "./types";
 
 export async function chooseAttachmentFile(): Promise<string | null> {
   const path = await open({
@@ -17,6 +18,30 @@ export function attachmentMarkdown(attachment: NoteAttachment): string {
   }
 
   return `[${label}](${attachment.markdownUrl})`;
+}
+
+export function objectUploadMarkdown(upload: ObjectUpload): string {
+  const label = escapeMarkdownLabel(upload.fileName);
+  if (upload.mimeGroup === "image") {
+    return `![${label}](${upload.url})`;
+  }
+
+  return `[${label}](${upload.url})`;
+}
+
+export function isObjectStorageConfigured(config: ObjectStorageConfig | null | undefined): boolean {
+  if (!config?.enabled) {
+    return false;
+  }
+
+  return [
+    config.endpoint,
+    config.region,
+    config.bucket,
+    config.accessKeyId,
+    config.secretAccessKey,
+    config.publicBaseUrl,
+  ].every((value) => value.trim().length > 0);
 }
 
 export function formatAttachmentSize(size: number): string {

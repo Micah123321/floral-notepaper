@@ -1836,6 +1836,7 @@ mod tests {
             surface_height: None,
             toggle_visibility_shortcut: "Ctrl+Shift+K".into(),
             webdav: Default::default(),
+            object_storage: Default::default(),
         };
 
         let error = match shortcut_bindings_from_config(&config) {
@@ -1888,6 +1889,7 @@ mod tests {
             surface_height: None,
             toggle_visibility_shortcut: String::new(),
             webdav: Default::default(),
+            object_storage: Default::default(),
         };
         let next = AppConfig {
             locale: "en-US".into(),
@@ -1921,6 +1923,7 @@ mod tests {
             surface_height: None,
             toggle_visibility_shortcut: "Ctrl+Shift+H".into(),
             webdav: Default::default(),
+            object_storage: Default::default(),
         };
 
         assert_eq!(

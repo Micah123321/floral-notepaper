@@ -80,6 +80,8 @@ pub struct AppConfig {
     pub open_at_cursor: bool,
     #[serde(default = "default_webdav_config")]
     pub webdav: WebdavConfig,
+    #[serde(default = "default_object_storage_config")]
+    pub object_storage: ObjectStorageConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -95,11 +97,44 @@ pub struct WebdavConfig {
     pub password: String,
     #[serde(default = "default_webdav_remote_path")]
     pub remote_path: String,
+    #[serde(default)]
+    pub sync_on_startup: bool,
+    #[serde(default = "default_webdav_conflict_strategy")]
+    pub conflict_strategy: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_sync_signature: Option<String>,
 }
 
 impl Default for WebdavConfig {
     fn default() -> Self {
         default_webdav_config()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectStorageConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub endpoint: String,
+    #[serde(default = "default_object_storage_region")]
+    pub region: String,
+    #[serde(default)]
+    pub bucket: String,
+    #[serde(default)]
+    pub access_key_id: String,
+    #[serde(default)]
+    pub secret_access_key: String,
+    #[serde(default)]
+    pub public_base_url: String,
+    #[serde(default = "default_object_storage_prefix")]
+    pub object_prefix: String,
+}
+
+impl Default for ObjectStorageConfig {
+    fn default() -> Self {
+        default_object_storage_config()
     }
 }
 
@@ -870,6 +905,7 @@ impl NoteStore {
             toggle_visibility_shortcut: default_toggle_visibility_shortcut(),
             open_at_cursor: default_open_at_cursor(),
             webdav: default_webdav_config(),
+            object_storage: default_object_storage_config(),
         }
     }
 
@@ -1353,6 +1389,10 @@ fn default_webdav_remote_path() -> String {
     "floral-notepaper".into()
 }
 
+fn default_webdav_conflict_strategy() -> String {
+    "ask".into()
+}
+
 fn default_webdav_config() -> WebdavConfig {
     WebdavConfig {
         enabled: false,
@@ -1360,6 +1400,30 @@ fn default_webdav_config() -> WebdavConfig {
         username: String::new(),
         password: String::new(),
         remote_path: default_webdav_remote_path(),
+        sync_on_startup: false,
+        conflict_strategy: default_webdav_conflict_strategy(),
+        last_sync_signature: None,
+    }
+}
+
+fn default_object_storage_region() -> String {
+    "auto".into()
+}
+
+fn default_object_storage_prefix() -> String {
+    "floral-notepaper".into()
+}
+
+fn default_object_storage_config() -> ObjectStorageConfig {
+    ObjectStorageConfig {
+        enabled: false,
+        endpoint: String::new(),
+        region: default_object_storage_region(),
+        bucket: String::new(),
+        access_key_id: String::new(),
+        secret_access_key: String::new(),
+        public_base_url: String::new(),
+        object_prefix: default_object_storage_prefix(),
     }
 }
 
@@ -1548,6 +1612,15 @@ mod tests {
         assert_eq!(default_config.locale, "zh-CN");
         assert!(!default_config.webdav.enabled);
         assert_eq!(default_config.webdav.remote_path, "floral-notepaper");
+        assert!(!default_config.webdav.sync_on_startup);
+        assert_eq!(default_config.webdav.conflict_strategy, "ask");
+        assert_eq!(default_config.webdav.last_sync_signature, None);
+        assert!(!default_config.object_storage.enabled);
+        assert_eq!(default_config.object_storage.region, "auto");
+        assert_eq!(
+            default_config.object_storage.object_prefix,
+            "floral-notepaper"
+        );
         assert!(default_config.notes_dir.ends_with("notes"));
 
         let custom_notes_dir = store.base_dir().join("custom-notes");
@@ -1583,6 +1656,7 @@ mod tests {
             toggle_visibility_shortcut: String::new(),
             open_at_cursor: true,
             webdav: default_webdav_config(),
+            object_storage: default_object_storage_config(),
         };
 
         store.save_config(saved.clone()).expect("save config");
@@ -1624,6 +1698,11 @@ mod tests {
         assert_eq!(loaded.surface_font_size, 14);
         assert!(!loaded.webdav.enabled);
         assert_eq!(loaded.webdav.remote_path, "floral-notepaper");
+        assert!(!loaded.webdav.sync_on_startup);
+        assert_eq!(loaded.webdav.conflict_strategy, "ask");
+        assert_eq!(loaded.webdav.last_sync_signature, None);
+        assert!(!loaded.object_storage.enabled);
+        assert_eq!(loaded.object_storage.region, "auto");
     }
 
     #[cfg(target_os = "macos")]

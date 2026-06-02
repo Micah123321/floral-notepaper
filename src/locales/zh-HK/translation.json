@@ -37,6 +37,11 @@
     "duplicateShortcut": "顯示／隱藏視窗快捷鍵不能與呼出小窗快捷鍵重複",
     "attachmentNotFound": "找不到該附件",
     "invalidAttachmentSource": "附件源檔案不存在或無法讀取",
+    "objectStorageConfigIncomplete": "請填寫 R2/S3 儲存配置",
+    "objectStorageConfigInvalid": "R2/S3 儲存配置無效",
+    "objectStorageNetwork": "無法連接 R2/S3 儲存",
+    "objectStorageUploadEmpty": "貼上的檔案為空",
+    "objectStorageUploadFailed": "上傳檔案失敗",
     "noPool": "便箋視窗池尚未初始化",
     "noteNotFound": "找不到該筆記",
     "unsupportedFile": "僅支援匯入 .md 檔案",
@@ -49,7 +54,8 @@
     "webdavNetwork": "無法連接 WebDAV",
     "webdavSnapshotInvalid": "遠端快照無效",
     "webdavSnapshotMissing": "遠端快照不存在",
-    "webdavUploadFailed": "上傳快照失敗"
+    "webdavUploadFailed": "上傳快照失敗",
+    "webdavStatusFailed": "檢查同步狀態失敗"
   },
   "markdown": {
     "copied": "已複製",
@@ -88,6 +94,10 @@
     },
     "externalFile": {
       "label": "外部檔案 · {{path}}"
+    },
+    "objectStorage": {
+      "configureHint": "請先設定 R2/S3 儲存",
+      "uploading": "上傳中"
     },
     "externalFiles": {
       "remove": "從清單移除",
@@ -227,6 +237,16 @@
       "zhHK": "繁體中文"
     },
     "notesDir": "筆記目錄",
+    "objectStorage": {
+      "accessKeyId": "Access Key",
+      "bucket": "Bucket",
+      "enabled": "R2/S3 儲存",
+      "endpoint": "地址",
+      "objectPrefix": "目錄",
+      "publicBaseUrl": "公開地址",
+      "region": "區域",
+      "secretAccessKey": "Secret Key"
+    },
     "openAtCursor": "快捷鍵開啟時跟隨滑鼠位置",
     "quickNoteShortcut": "快捷記錄快捷鍵",
     "rememberSurfaceSize": "記住小窗尺寸",
@@ -268,7 +288,27 @@
       "upload": "上傳",
       "uploaded": "已上傳",
       "uploading": "上傳中",
-      "username": "用戶"
+      "username": "用戶",
+      "check": "檢查",
+      "checking": "檢查中",
+      "sync": "同步",
+      "synced": "已同步",
+      "startup": "開啟時自動同步",
+      "conflict": "不一致時",
+      "cancelled": "已取消",
+      "conflictPrompt": "本機和遠端不同步。輸入 1 上傳本機，輸入 2 下載遠端，其他輸入取消。",
+      "strategy": {
+        "ask": "詢問",
+        "local": "本機優先",
+        "remote": "遠端優先"
+      },
+      "status": {
+        "synced": "本機與遠端一致",
+        "remoteMissing": "遠端無快照",
+        "localNewer": "本機有新內容",
+        "remoteNewer": "遠端有新內容",
+        "conflict": "本機與遠端不一致"
+      }
     },
     "theme": {
       "dark": "深色",

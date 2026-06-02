@@ -1,6 +1,6 @@
 ---
 module: settings-localization
-updated_at: 2026-05-30 16:28:01
+updated_at: 2026-06-02 16:35:00
 ---
 
 # 设置与本地化
@@ -14,6 +14,8 @@ updated_at: 2026-05-30 16:28:01
 - `src/features/settings/theme.ts`
 - `src/features/settings/tileColor.ts`
 - `src/features/settings/shortcutRecorder.ts`
+- `src/features/settings/webdavSync.ts`
+- `src/components/ObjectStorageSection.tsx`
 - `src/components/SettingsPanel.tsx`
 - `src/components/WebdavSyncSection.tsx`
 - `src/locales/index.ts`
@@ -62,6 +64,17 @@ updated_at: 2026-05-30 16:28:01
 - `webdav.username`
 - `webdav.password`
 - `webdav.remotePath`
+- `webdav.syncOnStartup`
+- `webdav.conflictStrategy`
+- `webdav.lastSyncSignature`
+- `objectStorage.enabled`
+- `objectStorage.endpoint`
+- `objectStorage.region`
+- `objectStorage.bucket`
+- `objectStorage.accessKeyId`
+- `objectStorage.secretAccessKey`
+- `objectStorage.publicBaseUrl`
+- `objectStorage.objectPrefix`
 
 ## 行为规范
 
@@ -72,10 +85,16 @@ updated_at: 2026-05-30 16:28:01
 - `resources.ts` 以 `zh-CN` 为基准，`en-US` 与 `zh-HK` 通过深度合并补齐缺失项。
 - 主题支持 `light`、`dark`、`system`。
 - 视图模式支持 `edit`、`split`、`preview`，非法值归一为 `split`。
-- WebDAV 设置区在设置面板中提供启用开关、地址、用户名、密码、远端目录、测试、上传和下载。
+- WebDAV 设置区在设置面板中提供启用开关、地址、用户名、密码、远端目录、启动自动同步、冲突策略、测试、检查、同步、上传和下载。
+- 对象存储设置区在设置面板中提供启用开关、endpoint、region、bucket、access key、secret key、公开地址和对象目录。
+- 对象存储默认关闭；前端通过 `objectStorage.enabled` 和必填字段判断粘贴上传是否可用。
+- WebDAV 详情面板始终保留在设置中；禁用时操作按钮不可用，但配置入口不消失。
 - 同步按钮触发前会立即保存当前设置，避免防抖保存导致后端读取旧 WebDAV 配置。
+- 同步策略由 `resolveWebdavSyncAction()` 统一解析；冲突默认 `ask`，用户可改为本机优先或远端优先。
+- 主窗口启动时仅在 `webdav.enabled && webdav.syncOnStartup` 时自动检查同步状态。
 - WebDAV 下载成功后 Rust 会广播 `config-changed` 和 `notes-changed`，主窗口同步刷新设置、笔记和背景配置。
-- WebDAV 错误码通过 `getErrorMessage()` 本地化，包括配置不完整、地址无效、远端目录失败、网络失败、快照缺失/无效、上传/下载失败。
+- WebDAV 错误码通过 `getErrorMessage()` 本地化，包括配置不完整、地址无效、远端目录失败、网络失败、快照缺失/无效、状态检查失败、上传/下载失败。
+- 对象存储错误码通过 `getErrorMessage()` 本地化，包括配置不完整、配置无效、网络失败、空文件和上传失败。
 
 ## 维护注意
 

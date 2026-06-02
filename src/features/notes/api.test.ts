@@ -6,6 +6,7 @@ import {
   deleteNoteAttachment,
   getErrorMessage,
   listNoteAttachments,
+  uploadObjectAttachment,
 } from "./api";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -77,6 +78,21 @@ describe("notes api error localization", () => {
       }),
     ).toBe("找不到该附件");
   });
+
+  test("localizes object storage errors", () => {
+    expect(
+      getErrorMessage({
+        code: "objectStorageConfigIncomplete",
+        message: "config incomplete",
+      }),
+    ).toBe("请填写 R2/S3 存储配置");
+    expect(
+      getErrorMessage({
+        code: "objectStorageUploadFailed",
+        message: "upload failed",
+      }),
+    ).toBe("上传文件失败");
+  });
 });
 
 describe("notes attachment api", () => {
@@ -96,6 +112,26 @@ describe("notes attachment api", () => {
     expect(invoke).toHaveBeenCalledWith("notes_delete_attachment", {
       noteId: "note-1",
       attachmentId: "attachment-1",
+    });
+  });
+
+  test("uploads object storage attachments through Rust", async () => {
+    mockedInvoke.mockResolvedValue({
+      fileName: "photo.png",
+      objectKey: "floral/note-1/photo.png",
+      url: "https://cdn.example.com/floral/note-1/photo.png",
+      mimeGroup: "image",
+      size: 3,
+      uploadedAt: "2026-06-02T08:00:00Z",
+    });
+
+    await uploadObjectAttachment("note-1", "photo.png", "image/png", [1, 2, 3]);
+
+    expect(invoke).toHaveBeenCalledWith("notes_upload_object_attachment", {
+      noteId: "note-1",
+      fileName: "photo.png",
+      contentType: "image/png",
+      data: [1, 2, 3],
     });
   });
 });

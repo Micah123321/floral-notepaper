@@ -1,6 +1,6 @@
 ---
 module: desktop-shell
-updated_at: 2026-05-30 16:28:01
+updated_at: 2026-06-02 16:23:00
 ---
 
 # 桌面壳
@@ -39,7 +39,7 @@ updated_at: 2026-05-30 16:28:01
 - `save_surface_size()` 在关闭便签或磁贴前保存窗口尺寸。
 - 单实例插件在第二实例启动时把文件路径转为 `open-external-file` 事件，并显示主窗口。
 - 冷启动文件路径存入 `STARTUP_FILE`，前端通过 `take_startup_file()` 消费，避免初始化竞态。
-- `sync_webdav_download` 恢复远端快照后会广播 `config-changed` 和 `notes-changed`，让主窗口和其他窗口刷新运行时状态。
+- `sync_webdav_status` 返回 WebDAV 远端快照状态和推荐动作；`sync_webdav_download` 恢复远端快照后会广播 `config-changed` 和 `notes-changed`，让主窗口和其他窗口刷新运行时状态。
 
 ## 托盘与快捷键
 

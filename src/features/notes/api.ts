@@ -1,6 +1,6 @@
 import { t, type TFunction } from "i18next";
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, NoteAttachment, NoteMetadata, SaveNoteRequest } from "./types";
+import type { Note, NoteAttachment, NoteMetadata, ObjectUpload, SaveNoteRequest } from "./types";
 
 interface SerializedAppError {
   code?: unknown;
@@ -21,6 +21,11 @@ const LOCALIZED_ERROR_CODES = new Set([
   "attachmentNotFound",
   "invalidAttachmentSource",
   "noteNotFound",
+  "objectStorageConfigIncomplete",
+  "objectStorageConfigInvalid",
+  "objectStorageNetwork",
+  "objectStorageUploadEmpty",
+  "objectStorageUploadFailed",
   "unsupportedFile",
   "unsupportedShortcut",
   "webdavConfigIncomplete",
@@ -30,6 +35,7 @@ const LOCALIZED_ERROR_CODES = new Set([
   "webdavNetwork",
   "webdavSnapshotInvalid",
   "webdavSnapshotMissing",
+  "webdavStatusFailed",
   "webdavUploadFailed",
 ]);
 
@@ -63,6 +69,20 @@ export function addNoteAttachment(noteId: string, sourcePath: string): Promise<N
 
 export function deleteNoteAttachment(noteId: string, attachmentId: string): Promise<void> {
   return invoke("notes_delete_attachment", { noteId, attachmentId });
+}
+
+export function uploadObjectAttachment(
+  noteId: string,
+  fileName: string,
+  contentType: string,
+  data: number[],
+): Promise<ObjectUpload> {
+  return invoke("notes_upload_object_attachment", {
+    noteId,
+    fileName,
+    contentType,
+    data,
+  });
 }
 
 export function moveNoteCategory(id: string, category: string): Promise<NoteMetadata> {
@@ -185,6 +205,26 @@ function getLocalizedAppErrorMessage(
       return translate("errors.invalidAttachmentSource", {
         defaultValue: "附件源文件不存在或不可读取",
       });
+    case "objectStorageConfigIncomplete":
+      return translate("errors.objectStorageConfigIncomplete", {
+        defaultValue: "请填写 R2/S3 存储配置",
+      });
+    case "objectStorageConfigInvalid":
+      return translate("errors.objectStorageConfigInvalid", {
+        defaultValue: "R2/S3 存储配置无效",
+      });
+    case "objectStorageNetwork":
+      return translate("errors.objectStorageNetwork", {
+        defaultValue: "无法连接 R2/S3 存储",
+      });
+    case "objectStorageUploadEmpty":
+      return translate("errors.objectStorageUploadEmpty", {
+        defaultValue: "粘贴的文件为空",
+      });
+    case "objectStorageUploadFailed":
+      return translate("errors.objectStorageUploadFailed", {
+        defaultValue: "上传文件失败",
+      });
     case "webdavConfigIncomplete":
       return translate("errors.webdavConfigIncomplete", {
         defaultValue: "请填写 WebDAV 地址、用户和密码",
@@ -201,6 +241,8 @@ function getLocalizedAppErrorMessage(
       return translate("errors.webdavSnapshotInvalid", { defaultValue: "远端快照无效" });
     case "webdavSnapshotMissing":
       return translate("errors.webdavSnapshotMissing", { defaultValue: "远端快照不存在" });
+    case "webdavStatusFailed":
+      return translate("errors.webdavStatusFailed", { defaultValue: "检查同步状态失败" });
     case "webdavUploadFailed":
       return translate("errors.webdavUploadFailed", { defaultValue: "上传快照失败" });
     case "duplicateShortcut":
